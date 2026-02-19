@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>バンコク・ヤワラート 言語景観マップ</title>
+    <title>Storefronts Data in Bangkok</title>
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -108,6 +108,7 @@
             'chinese': '#E74C3C',   // 赤
             'english': '#2ECC71',   // 緑
             'mixed': '#F39C12'      // オレンジ
+            // JP, KR, ARも要設定
         };
 
         // カスタムアイコン作成関数
@@ -122,6 +123,12 @@
                 color = languageColors.thai;
             } else if (languages.includes('english')) {
                 color = languageColors.english;
+            } else if (languages.includes('japanese')) {
+                color = languageColors.japanese;
+            } else if (languages.includes('korean')) {
+                color = languageColors.korean;
+            } else if (languages.includes('arabic')) {
+                color = languageColors.arabic;
             }
 
             return L.divIcon({
@@ -175,7 +182,10 @@
             const labels = {
                 'thai': 'ไทย',
                 'chinese': '中文',
-                'english': 'EN'
+                'english': 'EN',
+                'japanese': '日本語',
+                'korean': 'KR', //ハングルでハングルって入れたい
+                'arabic': 'AR' //アラビックでアラビックって入れたい
             };
             
             return languages.map(lang => {
@@ -217,6 +227,9 @@
                     if (row.thai_text && row.thai_text.trim()) languages.push('thai');
                     if (row.chinese_text && row.chinese_text.trim()) languages.push('chinese');
                     if (row.english_text && row.english_text.trim()) languages.push('english');
+                    if (row.english_text && row.japanese_text.trim()) languages.push('japanese');
+                    if (row.english_text && row.korean_text.trim()) languages.push('korean');
+                    if (row.english_text && row.arabic_text.trim()) languages.push('arabic');
 
                     // マーカーの作成
                     const marker = L.marker([lat, lng], {
@@ -231,9 +244,9 @@
                                  alt="看板写真"
                                  onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22200%22%3E%3Crect fill=%22%23ddd%22 width=%22300%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22%3E画像なし%3C/text%3E%3C/svg%3E'">
                             <div style="margin-bottom: 8px;">
-                                ${row.thai_text && row.thai_text.trim() ? `<div style="margin: 4px 0;"><strong>🇹🇭 タイ語:</strong> ${row.thai_text}</div>` : ''}
-                                ${row.chinese_text && row.chinese_text.trim() ? `<div style="margin: 4px 0;"><strong>🇨🇳 中国語:</strong> ${row.chinese_text}</div>` : ''}
-                                ${row.english_text && row.english_text.trim() ? `<div style="margin: 4px 0;"><strong>🇬🇧 英語:</strong> ${row.english_text}</div>` : ''}
+                                ${row.thai_text && row.thai_text.trim() ? `<div style="margin: 4px 0;"><strong>TH:</strong> ${row.thai_text}</div>` : ''}
+                                ${row.chinese_text && row.chinese_text.trim() ? `<div style="margin: 4px 0;"><strong>ZH:</strong> ${row.chinese_text}</div>` : ''}
+                                ${row.english_text && row.english_text.trim() ? `<div style="margin: 4px 0;"><strong>EN:</strong> ${row.english_text}</div>` : ''}
                             </div>
                             <div style="margin-top: 10px;">
                                 ${createLanguageLabels(languages)}
@@ -279,19 +292,19 @@
                 <h4>言語分類</h4>
                 <div class="legend-item">
                     <span class="legend-color" style="background-color: ${languageColors.thai}"></span>
-                    タイ語のみ
+                    Thai-Only
                 </div>
                 <div class="legend-item">
                     <span class="legend-color" style="background-color: ${languageColors.chinese}"></span>
-                    中国語のみ
+                    Chinese-Only
                 </div>
                 <div class="legend-item">
                     <span class="legend-color" style="background-color: ${languageColors.english}"></span>
-                    英語のみ
+                    English-Only
                 </div>
                 <div class="legend-item">
                     <span class="legend-color" style="background-color: ${languageColors.mixed}"></span>
-                    多言語（タイ+中国）
+                    Multi (Thai+Chinese)
                 </div>
             `;
             return div;
@@ -305,10 +318,10 @@
             div.style.marginBottom = '10px';
             div.innerHTML = `
                 <h3 style="margin: 0; font-size: 16px; color: #2c3e50;">
-                    バンコク・ヤワラート<br>言語景観マップ
+                    Storefronts in Bangkok<br>The Map of Linguistic Landscape
                 </h3>
                 <p style="margin: 5px 0 0 0; font-size: 12px; color: #7f8c8d;">
-                    Bangkok Chinatown Linguistic Landscape
+                    タイ・バンコクのショップファサードの言語景観マップ
                 </p>
             `;
             return div;
