@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>バンコク・ヤワラート 言語景観マップ</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+        .popup-image {
+            width: 300px;
+            height: auto;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .popup-content {
+            max-width: 320px;
+        }
+        .popup-content strong {
+            color: #2c3e50;
+        }
+        .language-label {
+            display: inline-block;
+            padding: 3px 8px;
+            margin: 2px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .legend {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+        }
+        .legend h4 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+        .legend-item {
+            margin: 8px 0;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+        }
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 3px rgba(0,0,0,0.3);
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            font-size: 16px;
+            color: #2c3e50;
+        }
+        .custom-marker {
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .custom-marker:hover {
+            transform: scale(1.3);
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">データを読み込み中...</div>
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // マップの初期化（バンコク・ヤワラート中心）
+        const map = L.map('map').setView([13.7465, 100.5310], 15);
+
+        // OpenStreetMap タイルレイヤー
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        // 言語ごとのマーカー色設定
+        const languageColors = {
+            'thai': '#4A90E2',      // 青
+            'chinese': '#E74C3C',   // 赤
+            'english': '#2ECC71',   // 緑
+            'mixed': '#F39C12'      // オレンジ
+        };
+
+        // カスタムアイコン作成関数
+        function createMarkerIcon(languages) {
+            let color = '#95A5A6'; // デフォルトグレー
+            
+            if (languages.includes('thai') && languages.includes('chinese')) {
+                color = languageColors.mixed;
+            } else if (languages.includes('chinese')) {
+                color = languageColors.chinese;
+            } else if (languages.includes('thai')) {
+                color = languageColors.thai;
+            } else if (languages.includes('english')) {
+                color = languageColors.english;
+            }
+
+            return L.divIcon({
+                className: 'custom-marker',
+                html: `<div style="
+                    background-color: ${color};
+                    width: 14px;
+                    height: 14px;
+                    border-radius: 50%;
+                    border: 2px solid white;
+                    box-shadow: 0 0 4px rgba(0,0,0,0.4);
+                "></div>`,
+                iconSize: [14, 14],
+                iconAnchor: [7, 7]
+            });
+        }
+
+        // CSV パース関数
+        function parseCSV(csv) {
+            const lines = csv.trim().split('\n');
+            const headers = lines[0].split(',');
+            
+            return lines.slice(1).map(line => {
+                // カンマ区切りだが、引用符内のカンマは無視
+                const values = [];
+                let current = '';
+                let inQuotes = false;
+                
+                for (let char of line) {
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        values.push(current);
+                        current = '';
+                    } else {
+                        current += char;
+                    }
+                }
+                values.push(current);
+                
+                const obj = {};
+                headers.forEach((header, index) => {
+                    obj[header.trim()] = values[index] ? values[index].trim() : '';
+                });
+                return obj;
+            });
+        }
+
+        // 言語ラベルのHTML生成
+        function createLanguageLabels(languages) {
+            const labels = {
+                'thai': 'ไทย',
+                'chinese': '中文',
+                'english': 'EN'
+            };
+            
+            return languages.map(lang => {
+                const bgcolor = languageColors[lang] + '30'; // 30 = 透明度
+                const textcolor = languageColors[lang];
+                return `<span class="language-label" style="background-color: ${bgcolor}; color: ${textcolor}">${labels[lang] || lang}</span>`;
+            }).join('');
+        }
+
+        // メインのデータ読み込みとマーカー追加
+        fetch('metadata.csv')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('CSVファイルが見つかりません');
+                }
+                return response.text();
+            })
+            .then(csvText => {
+                const data = parseCSV(csvText);
+                console.log(`${data.length}件のデータを読み込みました`);
+                
+                let validMarkers = 0;
+                const bounds = [];
+                
+                data.forEach(row => {
+                    const lat = parseFloat(row.latitude);
+                    const lng = parseFloat(row.longitude);
+                    
+                    if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+                        console.warn(`GPS情報なし: ${row.filename}`);
+                        return;
+                    }
+
+                    bounds.push([lat, lng]);
+                    validMarkers++;
+
+                    // 言語の判定
+                    const languages = [];
+                    if (row.thai_text && row.thai_text.trim()) languages.push('thai');
+                    if (row.chinese_text && row.chinese_text.trim()) languages.push('chinese');
+                    if (row.english_text && row.english_text.trim()) languages.push('english');
+
+                    // マーカーの作成
+                    const marker = L.marker([lat, lng], {
+                        icon: createMarkerIcon(languages)
+                    }).addTo(map);
+
+                    // ポップアップの内容
+                    const popupContent = `
+                        <div class="popup-content">
+                            <img src="images/${row.filename}" 
+                                 class="popup-image" 
+                                 alt="看板写真"
+                                 onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22200%22%3E%3Crect fill=%22%23ddd%22 width=%22300%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22%3E画像なし%3C/text%3E%3C/svg%3E'">
+                            <div style="margin-bottom: 8px;">
+                                ${row.thai_text && row.thai_text.trim() ? `<div style="margin: 4px 0;"><strong>🇹🇭 タイ語:</strong> ${row.thai_text}</div>` : ''}
+                                ${row.chinese_text && row.chinese_text.trim() ? `<div style="margin: 4px 0;"><strong>🇨🇳 中国語:</strong> ${row.chinese_text}</div>` : ''}
+                                ${row.english_text && row.english_text.trim() ? `<div style="margin: 4px 0;"><strong>🇬🇧 英語:</strong> ${row.english_text}</div>` : ''}
+                            </div>
+                            <div style="margin-top: 10px;">
+                                ${createLanguageLabels(languages)}
+                            </div>
+                            <div style="margin-top: 8px; font-size: 11px; color: #7f8c8d;">
+                                ID: ${row.image_id} | ${row.filename}
+                            </div>
+                        </div>
+                    `;
+
+                    marker.bindPopup(popupContent, {
+                        maxWidth: 340,
+                        className: 'custom-popup'
+                    });
+                });
+
+                // マップの表示範囲を自動調整
+                if (bounds.length > 0) {
+                    map.fitBounds(bounds, { padding: [50, 50] });
+                }
+
+                console.log(`${validMarkers}個のマーカーを表示しました`);
+                
+                // ローディング表示を消す
+                document.getElementById('loading').style.display = 'none';
+            })
+            .catch(error => {
+                console.error('エラー:', error);
+                document.getElementById('loading').innerHTML = `
+                    <div style="color: #e74c3c;">
+                        <strong>エラー</strong><br>
+                        ${error.message}<br>
+                        <small style="color: #7f8c8d;">metadata.csv が同じディレクトリにあるか確認してください</small>
+                    </div>
+                `;
+            });
+
+        // 凡例の追加
+        const legend = L.control({position: 'bottomright'});
+        legend.onAdd = function(map) {
+            const div = L.DomUtil.create('div', 'legend');
+            div.innerHTML = `
+                <h4>言語分類</h4>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: ${languageColors.thai}"></span>
+                    タイ語のみ
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: ${languageColors.chinese}"></span>
+                    中国語のみ
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: ${languageColors.english}"></span>
+                    英語のみ
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: ${languageColors.mixed}"></span>
+                    多言語（タイ+中国）
+                </div>
+            `;
+            return div;
+        };
+        legend.addTo(map);
+
+        // タイトルコントロール追加
+        const info = L.control({position: 'topleft'});
+        info.onAdd = function(map) {
+            const div = L.DomUtil.create('div', 'legend');
+            div.style.marginBottom = '10px';
+            div.innerHTML = `
+                <h3 style="margin: 0; font-size: 16px; color: #2c3e50;">
+                    バンコク・ヤワラート<br>言語景観マップ
+                </h3>
+                <p style="margin: 5px 0 0 0; font-size: 12px; color: #7f8c8d;">
+                    Bangkok Chinatown Linguistic Landscape
+                </p>
+            `;
+            return div;
+        };
+        info.addTo(map);
+    </script>
+</body>
+</html>
+```
+
+## ファイル構造
+```
+yaowarat-linguistic-landscape/
+├── index.html          ← このHTMLファイル
+├── metadata.csv        ← あなたのCSVファイル
+└── images/            ← 画像フォルダ
+    ├── IMG_2089.jpeg
+    ├── IMG_2090.jpeg
+    └── ...

@@ -1,0 +1,14 @@
+image_id,filename,thai_text,th_head,chinese_text,zh_s-t,zh_direction,english_text,arr_type,business_type,vis_clr,vis_dim,location_lat,location_lng,need_of_correction,latitude,longitude
+1,IMG_3750.jpeg,"โรงรับจํานัา, โรงรับจํานํา, บริษัทเช่งเป็งจํากัด, บริษัทเช่งเป็งจํากัด",loopless,"成興大餉當, 有限公司",t,RTL,,th-zh-th,,gold_on_dark,3d,,,,13.740433333333332,100.5093
+2,IMG_2091.jpeg,ช้างเสรีชัย,loopless,生利財文具行,t,RTL,THE SERICHAI,th//en-zh,,gold_on_dark,3d,,,,13.743630555555555,100.50394444444444
+3,IMG_2491.jpeg,บริษัท กาญจนไพบูลย์ จำก,loopless,長豐隆有限公司,t,RTL,"KARNCHANA PAIBUL CO.,LTD.",th-zh//en,,silver_on_dark,3d,,,th_lastword_not_identified,13.751680555555556,100.52555
+4,IMG_2162.jpeg,โพธิ์ประดิษฐ์สมุนไพร,loop,榮盛大藥行,t,LTR,PHOPRADIT HERB,th//en-zh,,gold_on_red,2d,,,,13.751586111111111,100.50863611111112
+5,IMG_2146.jpeg,นิยมจักรยาน,loopless,發財沈,t,RTL,,th-zh,,gold_on_red,3d,,,,13.7487,100.50724166666667
+6,IMG_2344.jpeg,"ห้างหันส่วนจ้วกัด, อิสเมิร์นแจนติค",loopless,東方两合公司,t*,RTL,"EASTERN ANTIQUES, LIMITED PARTNERSHIP",th-zh//en,,gold_on_white,3d,,,th_manual,13.726041666666667,100.516175
+7,IMG_2112.jpeg,"ห้างหุ้นส่วนจำกัด, ผ. รัตนโชติเทรดดิ้ง",loop,建輪盛两合公司,t*,RTL,"P.RATTANACHOTE TRADING LTD.,PART.",th//en-zh,,gold_on_dark,3d,,,clr_dark_or_white,13.7433,100.50599722222222
+8,IMG_3558.jpeg,ศรีฟ้า,loopless,世華,t,RTL,SRIF ,th-(zh//en),,multiclr,3d,,,th_manual,13.72738611111111,100.57550833333333
+9,IMG_2152.jpeg,"ห.จก, แสงศิริเอ็นจิเนียริ่ง",loopless,光成發兩合公司,t,RTL,"SANG SIRI ENGINEERING LTD.,PART.",th//en-zh,,metallic,3d,,,,13.749008333333332,100.50748333333334
+10,IMG_3119.jpeg,ซาลาเปาร้านว่านเพิ่ง,loop,万丰包子铺,s,LTR,,zh//th,,gold_on_red,3d,,,,13.778483333333334,100.57585833333333
+11,IMG_3114.jpeg,ซุปนอมm,loopless,淮南牛肉汤,s,LTR,,zh-th,,white_on_dark,2d,,,,13.778236111111111,100.5774
+12,IMG_2089.jpeg,"หจก, เอี(ดิ้)ยนน(ริ่)เกาะ",loopless,"延年閣, 两合公司",t*,LTR,"EAIN NEE KOK, PARTNERSHIP LTD",th-zh-en,,gold_on_dark,3d,,,,13.743438888888887,100.50381388888889
+13,IMG_2135.jpeg,"แสงธานี, ห้างหุ้นส่วนจํากัด",loopless,"光城, 两合公司",t*,RTL,"SANG THANI, LIMITED PARTNERSHIP",th-zh-en,,gold_on_dark,3d,,,,13.745013888888888,100.50692777777778
