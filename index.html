@@ -62,16 +62,14 @@
             color: #2c3e50;
         }
         .popup-side {
-            max-width: 0;
-            overflow: hidden;
-            transition: max-width 0.25s ease, padding-left 0.25s ease;
-            padding-left: 0;
-            border-left: none;
-        }
-        .popup-side.open {
-            max-width: 260px;
+            display: none;
+            width: 240px;
+            flex-shrink: 0;
             padding-left: 12px;
             border-left: 1px solid #ecf0f1;
+        }
+        .popup-side.open {
+            display: block;
         }
         .popup-meta table {
             width: 220px;
@@ -268,10 +266,9 @@
 
         function togglePopupMeta(btn) {
             const side = btn.closest('.popup-content').querySelector('.popup-side');
-            side.classList.toggle('open');
-            btn.textContent = side.classList.contains('open') ? 'Hide ‹' : 'Details ›';
-            // CSS transition (0.25s) 完了後に Leaflet のポップアップサイズを再計算
-            setTimeout(() => { if (map._popup) map._popup.update(); }, 270);
+            const isOpen = side.classList.toggle('open');
+            btn.textContent = isOpen ? 'Hide ‹' : 'Details ›';
+            if (map._popup) map._popup.update();
         }
 
         // メインのデータ読み込みとマーカー追加
