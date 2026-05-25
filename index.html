@@ -269,8 +269,11 @@
             const side = btn.closest('.popup-content').querySelector('.popup-side');
             const isOpen = side.classList.toggle('open');
             btn.textContent = isOpen ? 'Hide ‹' : 'Details ›';
-            if (map._popup) {
-                map._popup._updateLayout();
+            if (map._popup && map._popup._contentNode) {
+                const node = map._popup._contentNode;
+                const inner = btn.closest('.popup-content');
+                node.style.width = '';
+                node.style.width = Math.min(inner.scrollWidth, 620) + 'px';
                 map._popup._updatePosition();
             }
         }
