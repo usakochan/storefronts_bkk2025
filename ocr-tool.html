@@ -1,0 +1,1762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi-Model OCR Tool</title>
+<style>
+/* ===== RESET & BASE ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --dark:       #1a3a5c;
+  --dark2:      #153050;
+  --teal:       #1e6b8a;
+  --teal-light: #2b8aaa;
+  --green:      #4caf50;
+  --green-dark: #2e7d32;
+  --green-hover:#43a047;
+  --bg:         #eef2f7;
+  --surface:    #ffffff;
+  --border:     #cbd5e0;
+  --text:       #1a202c;
+  --text-muted: #718096;
+  --shadow:     0 2px 8px rgba(0,0,0,0.12);
+  --radius:     6px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;      /* fixed to viewport — prevents body growing and pushing bar off-screen */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+}
+
+/* ===== TOOLBAR ===== */
+.toolbar {
+  background: var(--dark);
+  color: white;
+  padding: 0 20px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+.toolbar-filename {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.9);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toolbar-status {
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+  flex-shrink: 0;
+}
+
+.toolbar-btn {
+  background: var(--teal);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.toolbar-btn:hover { background: var(--teal-light); }
+.toolbar-btn.secondary {
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.3);
+}
+.toolbar-btn.secondary:hover { background: rgba(255,255,255,0.25); }
+
+/* ===== MAIN LAYOUT ===== */
+.main {
+  display: flex;
+  gap: 0;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ===== LEFT PANEL ===== */
+.left-panel {
+  width: 520px;
+  min-width: 300px;
+  flex-shrink: 0;
+  min-height: 0;
+  overflow: hidden;   /* never let content push bottom bar off-screen */
+  display: flex;
+  flex-direction: column;
+  background: var(--dark);
+  border-right: 3px solid var(--dark2);
+}
+
+.drop-zone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: rgba(255,255,255,0.7);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 40px;
+  border: 2px dashed rgba(255,255,255,0.25);
+  margin: 16px;
+  border-radius: var(--radius);
+  transition: border-color 0.15s, background 0.15s;
+}
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--green);
+  background: rgba(76,175,80,0.08);
+}
+
+.drop-icon {
+  font-size: 40px;
+  opacity: 0.5;
+}
+
+.btn-select {
+  background: var(--teal);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  padding: 8px 18px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-select:hover { background: var(--teal-light); }
+
+/* Canvas area */
+.canvas-wrap {
+  flex: 1;
+  min-height: 0;    /* allow flex shrinking so left-bottom stays visible */
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.canvas-container {
+  flex: 1;
+  min-height: 0;    /* prevents flex item from expanding beyond parent */
+  overflow: hidden; /* switched to 'auto' by JS when zoomed */
+  background: #0f2438;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Wrapper tightly wraps both canvases so overlay always aligns with image */
+#canvasWrapper {
+  position: relative;
+  display: inline-block;
+  cursor: crosshair;
+  line-height: 0; /* eliminate inline-block bottom gap */
+}
+
+#imageCanvas {
+  display: block;
+}
+
+#overlayCanvas {
+  position: absolute;
+  top: 0; left: 0;
+  pointer-events: none;
+}
+
+/* Selection info badge */
+.selection-info {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0,0,0,0.7);
+  color: white;
+  font-size: 11px;
+  padding: 3px 7px;
+  border-radius: 3px;
+  display: none;
+  pointer-events: none;
+}
+
+/* Bottom of left panel */
+.left-bottom {
+  background: var(--dark2);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.filename-bar {
+  flex: 1;
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Progress bar */
+.progress-wrap {
+  height: 3px;
+  background: rgba(255,255,255,0.1);
+  flex-shrink: 0;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--green);
+  transition: width 0.25s ease;
+  width: 0%;
+}
+
+/* ===== RIGHT PANEL ===== */
+.right-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Model selector row */
+.model-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+/* Dropdown component */
+.dropdown-wrap {
+  position: relative;
+}
+
+.dropdown-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 2px solid var(--teal);
+  border-radius: var(--radius);
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dark);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: border-color 0.15s;
+}
+.dropdown-trigger:hover { border-color: var(--teal-light); }
+
+.dropdown-arrow {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: var(--dark);
+  color: white;
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  min-width: 200px;
+  z-index: 200;
+  overflow: hidden;
+  display: none;
+}
+.dropdown-menu.open { display: block; }
+
+.dropdown-item {
+  padding: 10px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.1s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dropdown-item:hover { background: rgba(255,255,255,0.12); }
+.dropdown-item.active {
+  background: rgba(43,138,170,0.3);
+  font-weight: 600;
+}
+.dropdown-item .check { color: var(--green); font-size: 12px; }
+
+/* Sort button */
+.sort-btn {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 15px;
+  color: var(--text-muted);
+  transition: border-color 0.15s, color 0.15s;
+}
+.sort-btn:hover { border-color: var(--teal); color: var(--teal); }
+
+.model-spacer { flex: 1; }
+
+/* API key section */
+.api-section {
+  background: #e8f4fc;
+  border: 1px solid #b0d4ea;
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  display: none;
+  gap: 6px;
+  flex-direction: column;
+}
+.api-section.visible { display: flex; }
+
+.api-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dark);
+}
+
+.api-input-row {
+  display: flex;
+  gap: 6px;
+}
+
+.api-input {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: monospace;
+}
+.api-input:focus { border-color: var(--teal); }
+
+.api-toggle {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.api-toggle:hover { border-color: var(--teal); color: var(--dark); }
+
+/* ===== LANG ROWS ===== */
+.lang-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lang-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  animation: fadeIn 0.2s ease;
+  border-radius: var(--radius);
+  transition: opacity 0.15s;
+  position: relative;
+}
+.lang-row.row-dragging { opacity: 0.3; }
+.lang-row.row-drag-over::before {
+  content: '';
+  position: absolute;
+  top: -2px; left: 0; right: 0;
+  height: 3px;
+  background: var(--teal-light);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.lang-row.row-drag-below::after {
+  content: '';
+  position: absolute;
+  bottom: -2px; left: 0; right: 0;
+  height: 3px;
+  background: var(--teal-light);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.drag-handle {
+  flex-shrink: 0;
+  margin-top: 9px;
+  width: 18px;
+  height: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  opacity: 0.2;
+  transition: opacity 0.15s;
+  touch-action: none;
+}
+.drag-handle:active { cursor: grabbing; }
+.lang-row:hover .drag-handle { opacity: 0.55; }
+.drag-handle span {
+  display: block;
+  width: 12px;
+  height: 2px;
+  background: var(--text);
+  border-radius: 1px;
+}
+
+/* Ghost label that follows the cursor */
+.row-drag-ghost {
+  position: fixed;
+  background: var(--dark);
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+  letter-spacing: 0.5px;
+  pointer-events: none;
+  z-index: 9999;
+  cursor: grabbing;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.lang-tag {
+  width: 40px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dark);
+  text-align: right;
+  padding-top: 10px;
+  flex-shrink: 0;
+  letter-spacing: 0.5px;
+}
+
+.lang-input-wrap {
+  flex: 1;
+  position: relative;
+}
+
+.lang-textarea {
+  width: 100%;
+  border: 2px solid var(--green);
+  border-radius: var(--radius);
+  padding: 8px 36px 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 42px;
+  outline: none;
+  background: var(--surface);
+  color: var(--text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+  overflow: hidden;
+}
+.lang-textarea:focus { border-color: var(--green-dark); box-shadow: 0 0 0 3px rgba(76,175,80,0.15); }
+.lang-textarea.copied { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(30,107,138,0.2); }
+.lang-textarea.error-state { border-color: #e53e3e; }
+
+/* Spinner inside textarea */
+.lang-spinner {
+  position: absolute;
+  top: 11px;
+  right: 34px;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(76,175,80,0.3);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: none;
+}
+.lang-spinner.active { display: block; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.copy-btn {
+  position: absolute;
+  right: 6px;
+  top: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+  padding: 3px;
+  border-radius: 3px;
+  transition: color 0.15s, background 0.15s;
+}
+.copy-btn:hover { color: var(--dark); background: rgba(0,0,0,0.06); }
+.copy-btn.flash { color: var(--green-dark); }
+
+.remove-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--text);
+  color: white;
+  border: none;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 9px;
+  transition: background 0.15s;
+}
+.remove-btn:hover { background: #e53e3e; }
+
+/* Add language row */
+.add-lang-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding-left: 48px;
+}
+
+.add-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--text);
+  color: white;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s, transform 0.1s;
+}
+.add-btn:hover { background: var(--teal); transform: scale(1.1); }
+
+.lang-select-add {
+  background: var(--surface);
+  border: 2px solid var(--green);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+  color: var(--dark);
+}
+
+/* ===== SCROLLBAR ===== */
+.right-panel::-webkit-scrollbar { width: 6px; }
+.right-panel::-webkit-scrollbar-track { background: transparent; }
+.right-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ===== TOAST ===== */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--dark);
+  color: white;
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  box-shadow: var(--shadow);
+  z-index: 9999;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.success { border-left: 3px solid var(--green); }
+.toast.error   { border-left: 3px solid #e53e3e; }
+.toast.info    { border-left: 3px solid var(--teal); }
+
+/* ===== PANEL RESIZER ===== */
+.panel-resizer {
+  width: 5px;
+  background: var(--dark2);
+  cursor: col-resize;
+  flex-shrink: 0;
+  transition: background 0.15s;
+  position: relative;
+  z-index: 10;
+}
+.panel-resizer:hover,
+.panel-resizer.active { background: var(--teal-light); }
+
+/* ===== ZOOM BAR ===== */
+.zoom-bar {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.zoom-btn {
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: white;
+  border-radius: 3px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  transition: background 0.15s;
+  padding: 0;
+}
+.zoom-btn:hover { background: rgba(255,255,255,0.3); }
+.zoom-label {
+  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+  min-width: 42px;
+  text-align: center;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+  cursor: pointer;
+  user-select: none;
+}
+.zoom-label:hover { color: white; }
+
+/* ===== DIVIDER ===== */
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 8px;
+  margin-top: 4px;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 860px) {
+  .main { flex-direction: column; }
+  .left-panel { width: 100%; min-width: 0; height: 50vh; }
+  .canvas-container { height: 100%; }
+}
+</style>
+</head>
+<body>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <button class="toolbar-btn" id="btnProcess" onclick="processOCR()">Run OCR (↵)</button>
+  <button class="toolbar-btn secondary" onclick="reframe()">Reframe (esc)</button>
+  <span class="toolbar-filename" id="toolbarFilename">No image loaded</span>
+  <span class="toolbar-status" id="toolbarStatus">Ready</span>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- LEFT PANEL -->
+  <div class="left-panel" id="leftPanel">
+
+    <!-- Drop zone -->
+    <div class="drop-zone" id="dropZone" onclick="triggerFileSelect()" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+      <div class="drop-icon">🖼</div>
+      <div>Drag &amp; drop an image here</div>
+      <div style="color:rgba(255,255,255,0.4);font-size:12px;">or</div>
+      <button class="btn-select" onclick="event.stopPropagation(); triggerFileSelect()">Select from file</button>
+      <div style="color:rgba(255,255,255,0.35);font-size:11px;margin-top:4px;">PNG · JPG · WEBP · GIF · BMP</div>
+    </div>
+    <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="onFileSelect(event)">
+
+    <!-- Canvas area (shown after load) -->
+    <div class="canvas-wrap" id="canvasWrap">
+      <div class="progress-wrap"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="canvas-container" id="canvasContainer">
+        <div id="canvasWrapper"
+          onmousedown="onMouseDown(event)"
+          onmousemove="onMouseMove(event)"
+          onmouseup="onMouseUp(event)"
+          onmouseleave="onMouseLeave(event)">
+          <canvas id="imageCanvas"></canvas>
+          <canvas id="overlayCanvas"></canvas>
+          <div class="selection-info" id="selectionInfo"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom bar — direct child of left-panel so it's always pinned to the bottom -->
+    <div class="left-bottom" id="leftBottom">
+      <span class="filename-bar" id="filenameBar">—</span>
+      <div class="zoom-bar">
+        <button class="zoom-btn" onclick="zoomOut()" title="Zoom out (−)">−</button>
+        <span class="zoom-label" id="zoomLabel" onclick="zoomFit()" title="Click to fit">fit</span>
+        <button class="zoom-btn" onclick="zoomIn()" title="Zoom in (+)">+</button>
+      </div>
+      <button class="toolbar-btn" style="font-size:12px;padding:5px 10px;" onclick="triggerFileSelect()">Change</button>
+    </div>
+
+  </div>
+
+  <!-- PANEL RESIZER -->
+  <div class="panel-resizer" id="panelResizer"></div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel" id="rightPanel">
+
+    <!-- Model selector -->
+    <div class="section-label">OCR Engine</div>
+    <div class="model-row">
+      <div class="dropdown-wrap" id="modelDropWrap">
+        <div class="dropdown-trigger" id="modelTrigger" onclick="toggleDropdown('modelDrop', 'modelTrigger')">
+          <span id="modelLabel">Select the model</span>
+          <span class="dropdown-arrow">▼</span>
+        </div>
+        <div class="dropdown-menu" id="modelDrop">
+          <div class="dropdown-item" data-val="tesseract" onclick="selectModel('tesseract','Tesseract.js (offline)')">
+            <span class="check" id="chk_tesseract"></span> Tesseract.js <small style="opacity:.6;font-size:11px;">offline</small>
+          </div>
+          <div class="dropdown-item" data-val="google" onclick="selectModel('google','Google Vision API')">
+            <span class="check" id="chk_google"></span> Google Vision API
+          </div>
+          <div class="dropdown-item" data-val="claude" onclick="selectModel('claude','Claude Vision API')">
+            <span class="check" id="chk_claude"></span> Claude Vision API
+          </div>
+          <div style="border-top:1px solid rgba(255,255,255,0.1);margin:4px 0;"></div>
+          <div class="dropdown-item" data-val="paddle" onclick="selectModel('paddle','PaddleOCR (local)')">
+            <span class="check" id="chk_paddle"></span> PaddleOCR <span id="dot_paddle" style="font-size:9px;margin-left:4px;">●</span>
+          </div>
+          <div class="dropdown-item" data-val="easy" onclick="selectModel('easy','EasyOCR (local)')">
+            <span class="check" id="chk_easy"></span> EasyOCR <span id="dot_easy" style="font-size:9px;margin-left:4px;">●</span>
+          </div>
+        </div>
+      </div>
+      <div class="model-spacer"></div>
+      <button class="sort-btn" onclick="sortRows()" title="Sort languages A→Z">⇅</button>
+    </div>
+
+    <!-- API key section -->
+    <div class="api-section" id="apiSection">
+      <div class="api-label" id="apiLabel">API Key:</div>
+      <div class="api-input-row">
+        <input class="api-input" type="password" id="apiKeyInput" placeholder="Paste your API key here…" oninput="saveApiKey()">
+        <button class="api-toggle" onclick="toggleApiVisibility()">Show</button>
+        <span id="savedBadge" style="font-size:11px;color:var(--green-dark);display:none;white-space:nowrap;">✓ saved</span>
+      </div>
+    </div>
+
+    <!-- Local server status (shown for Paddle/Easy) -->
+    <div id="serverStatusBar" style="display:none;align-items:center;gap:8px;background:#f0f7f0;border:1px solid #c3e6c3;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:12px;">
+      <span id="serverDot" style="font-size:14px;">●</span>
+      <span id="serverMsg" style="flex:1;">Checking local server…</span>
+      <button onclick="checkServer()" style="background:none;border:1px solid #aaa;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↺ Retry</button>
+      <a href="javascript:void(0)" onclick="showServerHelp()" style="font-size:11px;color:var(--teal);text-decoration:none;">How to start</a>
+    </div>
+
+    <!-- Server help modal -->
+    <div id="serverHelpModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;align-items:center;justify-content:center;">
+      <div style="background:white;border-radius:8px;padding:24px;max-width:480px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+        <h3 style="margin-bottom:12px;color:var(--dark);">How to start the local server</h3>
+        <p style="font-size:13px;margin-bottom:10px;color:#555;">Run the following commands in your terminal:</p>
+        <p style="font-size:12px;font-weight:600;color:#666;margin-bottom:4px;">① Install dependencies (first time only)</p>
+        <pre style="background:#1e3a5c;color:#e2e8f0;padding:10px 14px;border-radius:6px;font-size:12px;overflow-x:auto;margin-bottom:10px;">pip install flask flask-cors paddlepaddle paddleocr easyocr pillow numpy</pre>
+        <p style="font-size:12px;font-weight:600;color:#666;margin-bottom:4px;">② Start the server</p>
+        <pre style="background:#1e3a5c;color:#e2e8f0;padding:10px 14px;border-radius:6px;font-size:12px;margin-bottom:16px;">python ocr_server.py</pre>
+        <p style="font-size:12px;color:#888;">The server runs at <code>http://localhost:5050</code>.<br>Once started, click the ↺ Retry button above.</p>
+        <button onclick="document.getElementById('serverHelpModal').style.display='none'" style="margin-top:16px;background:var(--dark);color:white;border:none;border-radius:6px;padding:8px 20px;cursor:pointer;font-size:13px;">Close</button>
+      </div>
+    </div>
+
+    <!-- Language rows -->
+    <div class="section-label" style="margin-top:8px;">Results by Language</div>
+    <div class="lang-rows" id="langRows"></div>
+
+    <!-- Add language -->
+    <div class="add-lang-row" style="margin-top:10px;">
+      <button class="add-btn" onclick="addRow()" title="Add language">+</button>
+      <select class="lang-select-add" id="addLangSelect">
+        <option value="EN">EN</option>
+        <option value="ZH">ZH</option>
+        <option value="JP">JP</option>
+        <option value="TH">TH</option>
+        <option value="KO">KO</option>
+        <option value="FR">FR</option>
+        <option value="DE">DE</option>
+        <option value="ES">ES</option>
+        <option value="AR">AR</option>
+        <option value="RU">RU</option>
+        <option value="VI">VI</option>
+        <option value="HI">HI</option>
+        <option value="PT">PT</option>
+        <option value="IT">IT</option>
+      </select>
+    </div>
+
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Tesseract.js CDN -->
+<script src="https://unpkg.com/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+
+<script>
+'use strict';
+
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+let currentImage   = null;    // HTMLImageElement
+let currentFile    = null;    // File
+let selectedModel  = null;    // 'tesseract' | 'google' | 'claude'
+let selection      = null;    // {x,y,w,h} in IMAGE pixel coords
+let dragStart      = null;
+let isDragging     = false;
+let isProcessing   = false;
+let zoomLevel      = 1.0;     // 1.0 = fit to container
+const ZOOM_MIN = 0.1;
+const ZOOM_MAX = 10.0;
+
+// language row state: [{lang, id}]
+let langRows = [];
+let rowIdCounter = 0;
+let rowDragSrcId = null;
+let rowDragGhost  = null;
+
+function clearRowDragStyles() {
+  document.querySelectorAll('.lang-row').forEach(el =>
+    el.classList.remove('row-drag-over', 'row-drag-below')
+  );
+}
+
+// ─── Pointer-based row drag-and-drop ────────────────────────────────────────
+function initRowDrag(handleEl, rowEl, rowId) {
+  handleEl.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    handleEl.setPointerCapture(e.pointerId);
+
+    rowDragSrcId = rowId;
+    rowEl.classList.add('row-dragging');
+
+    // Small ghost label that follows the cursor
+    rowDragGhost = document.createElement('div');
+    rowDragGhost.className = 'row-drag-ghost';
+    rowDragGhost.textContent = rowEl.querySelector('.lang-tag').textContent.trim();
+    rowDragGhost.style.left = (e.clientX + 12) + 'px';
+    rowDragGhost.style.top  = (e.clientY - 10) + 'px';
+    document.body.appendChild(rowDragGhost);
+
+    const onMove = ev => {
+      // Move ghost
+      rowDragGhost.style.left = (ev.clientX + 12) + 'px';
+      rowDragGhost.style.top  = (ev.clientY - 10) + 'px';
+
+      // Highlight the single nearest target row — one class, one line
+      clearRowDragStyles();
+      let nearestEl = null, nearestDist = Infinity, insertBelow = false;
+      document.querySelectorAll('.lang-row').forEach(el => {
+        if (+el.dataset.id === rowDragSrcId) return;
+        const r   = el.getBoundingClientRect();
+        const mid = r.top + r.height / 2;
+        const dist = Math.abs(ev.clientY - mid);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearestEl   = el;
+          insertBelow = ev.clientY >= mid;
+        }
+      });
+      if (nearestEl) nearestEl.classList.add(insertBelow ? 'row-drag-below' : 'row-drag-over');
+    };
+
+    const onUp = () => {
+      handleEl.removeEventListener('pointermove', onMove);
+      handleEl.removeEventListener('pointerup',   onUp);
+      handleEl.removeEventListener('pointercancel', onUp);
+
+      if (rowDragGhost) { rowDragGhost.remove(); rowDragGhost = null; }
+      rowEl.classList.remove('row-dragging');
+
+      // Find drop target
+      let dropId = null, dropBelow = false;
+      document.querySelectorAll('.lang-row').forEach(el => {
+        if (el.classList.contains('row-drag-over'))  { dropId = +el.dataset.id; dropBelow = false; }
+        if (el.classList.contains('row-drag-below')) { dropId = +el.dataset.id; dropBelow = true;  }
+      });
+      clearRowDragStyles();
+
+      if (dropId !== null) {
+        const srcIdx = langRows.findIndex(r => r.id === rowDragSrcId);
+        const [moved] = langRows.splice(srcIdx, 1);
+        // Re-find target index after splice
+        let tgtIdx = langRows.findIndex(r => r.id === dropId);
+        if (dropBelow) tgtIdx++;
+        langRows.splice(tgtIdx, 0, moved);
+        renderRows();
+      }
+      rowDragSrcId = null;
+    };
+
+    handleEl.addEventListener('pointermove',   onMove);
+    handleEl.addEventListener('pointerup',     onUp);
+    handleEl.addEventListener('pointercancel', onUp);
+  });
+}
+
+// Language mapping tables
+const TESSERACT_MAP = {
+  EN:'eng', ZH:'chi_sim+chi_tra', JP:'jpn', TH:'tha',
+  KO:'kor', FR:'fra', DE:'deu', ES:'spa', AR:'ara',
+  RU:'rus', VI:'vie', HI:'hin', PT:'por', IT:'ita'
+};
+
+const GOOGLE_LANG_MAP = {
+  EN:'en', ZH:'zh', JP:'ja', TH:'th',
+  KO:'ko', FR:'fr', DE:'de', ES:'es', AR:'ar',
+  RU:'ru', VI:'vi', HI:'hi', PT:'pt', IT:'it'
+};
+
+const LANG_NAMES = {
+  EN:'English', ZH:'Chinese', JP:'Japanese', TH:'Thai',
+  KO:'Korean', FR:'French', DE:'German', ES:'Spanish', AR:'Arabic',
+  RU:'Russian', VI:'Vietnamese', HI:'Hindi', PT:'Portuguese', IT:'Italian'
+};
+
+// ─────────────────────────────────────────────
+// CANVAS REFS
+// ─────────────────────────────────────────────
+const imgCanvas    = document.getElementById('imageCanvas');
+const ovCanvas     = document.getElementById('overlayCanvas');
+const imgCtx       = imgCanvas.getContext('2d');
+const ovCtx        = ovCanvas.getContext('2d');
+const canvasCont   = document.getElementById('canvasContainer');  // for size measurement
+const canvasWrapper = document.getElementById('canvasWrapper');   // for mouse/resize
+
+// ─────────────────────────────────────────────
+// FILE HANDLING
+// ─────────────────────────────────────────────
+function triggerFileSelect() {
+  document.getElementById('fileInput').click();
+}
+
+function onFileSelect(e) {
+  const f = e.target.files[0];
+  if (f) loadImageFile(f);
+  e.target.value = '';
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.add('drag-over');
+}
+function onDragLeave(e) {
+  document.getElementById('dropZone').classList.remove('drag-over');
+}
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) loadImageFile(f);
+  else showToast('Please drop an image file.', 'error');
+}
+
+function loadImageFile(file) {
+  currentFile = file;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      currentImage = img;
+      selection = null;
+      renderCanvas();
+      document.getElementById('dropZone').style.display  = 'none';
+      document.getElementById('canvasWrap').style.display = 'flex';
+      document.getElementById('filenameBar').textContent  = file.name;
+      document.getElementById('toolbarFilename').textContent = file.name;
+      setStatus('Image loaded — drag to select a region, or press ↵ to OCR full image.');
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ─────────────────────────────────────────────
+// CANVAS RENDER
+// ─────────────────────────────────────────────
+function renderCanvas() {
+  if (!currentImage) return;
+  const maxW = canvasCont.clientWidth  || 500;
+  const maxH = canvasCont.clientHeight || 460;
+  const fitScaleW = maxW / currentImage.width;
+  const fitScaleH = maxH / currentImage.height;
+  const fitScale  = Math.min(1, fitScaleW, fitScaleH);
+  const scale = fitScale * zoomLevel;
+  const w = Math.round(currentImage.width  * scale);
+  const h = Math.round(currentImage.height * scale);
+
+  imgCanvas.width  = w; imgCanvas.height = h;
+  ovCanvas.width   = w; ovCanvas.height  = h;
+  ovCanvas.style.width  = w + 'px';
+  ovCanvas.style.height = h + 'px';
+  imgCanvas.style.width  = w + 'px';
+  imgCanvas.style.height = h + 'px';
+
+  imgCtx.clearRect(0, 0, w, h);
+  imgCtx.drawImage(currentImage, 0, 0, w, h);
+  drawOverlay();
+
+  // Overflow / alignment when zoomed beyond fit
+  if (w > maxW || h > maxH) {
+    canvasCont.style.overflow = 'auto';
+    canvasCont.style.alignItems = 'flex-start';
+    canvasCont.style.justifyContent = 'flex-start';
+    canvasCont.style.padding = '8px';
+  } else {
+    canvasCont.style.overflow = 'hidden';
+    canvasCont.style.alignItems = 'center';
+    canvasCont.style.justifyContent = 'center';
+    canvasCont.style.padding = '0';
+  }
+
+  updateZoomLabel(fitScale);
+}
+
+function drawOverlay() {
+  ovCtx.clearRect(0, 0, ovCanvas.width, ovCanvas.height);
+  const info = document.getElementById('selectionInfo');
+  if (!selection || selection.w < 4 || selection.h < 4) {
+    info.style.display = 'none';
+    return;
+  }
+
+  // Convert selection from image coords → canvas coords for drawing
+  const scaleX = imgCanvas.width  / currentImage.width;
+  const scaleY = imgCanvas.height / currentImage.height;
+  const x = selection.x * scaleX;
+  const y = selection.y * scaleY;
+  const w = selection.w * scaleX;
+  const h = selection.h * scaleY;
+
+  // Dim outside selection
+  ovCtx.fillStyle = 'rgba(0,0,0,0.45)';
+  ovCtx.fillRect(0, 0, ovCanvas.width, ovCanvas.height);
+  ovCtx.clearRect(x, y, w, h);
+  // Border
+  ovCtx.strokeStyle = '#4caf50';
+  ovCtx.lineWidth = 2;
+  ovCtx.strokeRect(x, y, w, h);
+  // Corner handles
+  const hs = 6;
+  ovCtx.fillStyle = '#4caf50';
+  [[x,y],[x+w,y],[x,y+h],[x+w,y+h]].forEach(([cx,cy]) => {
+    ovCtx.fillRect(cx - hs/2, cy - hs/2, hs, hs);
+  });
+  // Dashed crosshair lines
+  ovCtx.setLineDash([4,4]);
+  ovCtx.strokeStyle = 'rgba(76,175,80,0.4)';
+  ovCtx.lineWidth = 1;
+  ovCtx.beginPath();
+  ovCtx.moveTo(x + w/2, y); ovCtx.lineTo(x + w/2, y + h);
+  ovCtx.moveTo(x, y + h/2); ovCtx.lineTo(x + w, y + h/2);
+  ovCtx.stroke();
+  ovCtx.setLineDash([]);
+
+  // Info badge shows original image pixel size
+  info.textContent = `${Math.round(selection.w)} × ${Math.round(selection.h)} px`;
+  info.style.display = 'block';
+}
+
+// ─────────────────────────────────────────────
+// MOUSE EVENTS FOR SELECTION
+// ─────────────────────────────────────────────
+function getPos(e) {
+  // Returns coordinates in IMAGE pixel space (zoom-invariant).
+  // getBoundingClientRect() gives exact on-screen position of the canvas.
+  const r = imgCanvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - r.left) * (currentImage.width  / r.width),
+    y: (e.clientY - r.top)  * (currentImage.height / r.height)
+  };
+}
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function onMouseDown(e) {
+  if (!currentImage || e.button !== 0) return;
+  isDragging = true;
+  const p = getPos(e);
+  // Clamp to image bounds (coords are in image pixels)
+  dragStart = { x: clamp(p.x, 0, currentImage.width), y: clamp(p.y, 0, currentImage.height) };
+  selection = null;
+  drawOverlay();
+}
+
+function onMouseMove(e) {
+  if (!isDragging || !dragStart) return;
+  const p = getPos(e);
+  const cx = clamp(p.x, 0, currentImage.width);
+  const cy = clamp(p.y, 0, currentImage.height);
+  selection = {
+    x: Math.min(dragStart.x, cx),
+    y: Math.min(dragStart.y, cy),
+    w: Math.abs(cx - dragStart.x),
+    h: Math.abs(cy - dragStart.y)
+  };
+  drawOverlay();
+}
+
+function onMouseUp(e) {
+  if (!isDragging) return;
+  isDragging = false;
+  if (selection && (selection.w < 5 || selection.h < 5)) {
+    selection = null;
+    drawOverlay();
+  }
+  dragStart = null;
+}
+
+function onMouseLeave(e) {
+  if (isDragging) {
+    isDragging = false;
+    dragStart = null;
+  }
+}
+
+// Reframe = clear selection
+function reframe() {
+  selection = null;
+  drawOverlay();
+  setStatus('Selection cleared — full image will be used.');
+}
+
+// ─────────────────────────────────────────────
+// LANGUAGE ROWS
+// ─────────────────────────────────────────────
+function initDefaultRows() {
+  ['EN','ZH','JP','TH'].forEach(l => langRows.push({ lang: l, id: rowIdCounter++ }));
+  renderRows();
+}
+
+function renderRows() {
+  const container = document.getElementById('langRows');
+  container.innerHTML = '';
+  langRows.forEach((row) => {
+    const div = document.createElement('div');
+    div.className = 'lang-row';
+    div.dataset.id = row.id;
+    div.innerHTML = `
+      <div class="drag-handle" title="Drag to reorder">
+        <span></span><span></span><span></span>
+      </div>
+      <span class="lang-tag">${row.lang}</span>
+      <div class="lang-input-wrap">
+        <textarea class="lang-textarea" id="ta_${row.id}"
+          placeholder="Result will appear here…" readonly rows="2"
+          title="${LANG_NAMES[row.lang] || row.lang}"></textarea>
+        <div class="lang-spinner" id="sp_${row.id}"></div>
+        <button class="copy-btn" id="cp_${row.id}" onclick="copyRow(${row.id})" title="Copy to clipboard">⎘</button>
+      </div>
+      <button class="remove-btn" onclick="removeRow(${row.id})" title="Remove">−</button>
+    `;
+
+    // Attach pointer-based drag to the handle only
+    const handle = div.querySelector('.drag-handle');
+    initRowDrag(handle, div, row.id);
+
+    container.appendChild(div);
+  });
+}
+
+function addRow() {
+  const lang = document.getElementById('addLangSelect').value;
+  if (langRows.find(r => r.lang === lang)) {
+    showToast(`${lang} is already in the list.`, 'info');
+    return;
+  }
+  langRows.push({ lang, id: rowIdCounter++ });
+  renderRows();
+}
+
+function removeRow(id) {
+  langRows = langRows.filter(r => r.id !== id);
+  renderRows();
+}
+
+function sortRows() {
+  langRows.sort((a, b) => a.lang.localeCompare(b.lang));
+  renderRows();
+  showToast('Languages sorted A → Z', 'info');
+}
+
+function copyRow(id) {
+  const ta = document.getElementById(`ta_${id}`);
+  if (!ta || !ta.value.trim()) { showToast('Nothing to copy yet.', 'info'); return; }
+  navigator.clipboard.writeText(ta.value).then(() => {
+    const btn = document.getElementById(`cp_${id}`);
+    if (btn) {
+      btn.classList.add('flash');
+      btn.textContent = '✓';
+      setTimeout(() => { btn.classList.remove('flash'); btn.textContent = '⎘'; }, 1200);
+    }
+    showToast('Copied!', 'success');
+  }).catch(() => {
+    // Fallback
+    ta.select(); document.execCommand('copy');
+    showToast('Copied!', 'success');
+  });
+}
+
+// ─────────────────────────────────────────────
+// MODEL SELECTOR
+// ─────────────────────────────────────────────
+function toggleDropdown(menuId, triggerId) {
+  const menu = document.getElementById(menuId);
+  const isOpen = menu.classList.contains('open');
+  closeAllDropdowns();
+  if (!isOpen) menu.classList.add('open');
+}
+
+function closeAllDropdowns() {
+  document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('open'));
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.dropdown-wrap')) closeAllDropdowns();
+});
+
+function selectModel(id, label) {
+  selectedModel = id;
+  document.getElementById('modelLabel').textContent = label;
+  closeAllDropdowns();
+
+  // Update checkmarks
+  ['tesseract','google','claude','paddle','easy'].forEach(k => {
+    document.getElementById(`chk_${k}`).textContent = k === id ? '✓' : '';
+  });
+
+  // Persist selected model
+  localStorage.setItem('ocr_last_model', id);
+
+  const sec    = document.getElementById('apiSection');
+  const lbl    = document.getElementById('apiLabel');
+  const srvBar = document.getElementById('serverStatusBar');
+
+  // Hide both sections first
+  sec.classList.remove('visible');
+  srvBar.style.display = 'none';
+  document.getElementById('apiKeyInput').value = '';
+
+  if (id === 'tesseract') {
+    // no extra UI needed
+
+  } else if (id === 'google' || id === 'claude') {
+    sec.classList.add('visible');
+    lbl.textContent = id === 'google'
+      ? 'Google Cloud Vision API Key:'
+      : 'Anthropic API Key (claude-haiku):';
+    const saved = localStorage.getItem(`ocr_apikey_${id}`);
+    document.getElementById('apiKeyInput').value = saved || '';
+    const badge = document.getElementById('savedBadge');
+    if (saved) { badge.style.display = 'inline'; setTimeout(() => badge.style.display = 'none', 1800); }
+    else        { badge.style.display = 'none'; }
+
+  } else if (id === 'paddle' || id === 'easy') {
+    srvBar.style.display = 'flex';
+    checkServer();
+  }
+}
+
+function toggleApiVisibility() {
+  const inp = document.getElementById('apiKeyInput');
+  const btn = event.target;
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = 'Hide'; }
+  else                         { inp.type = 'password'; btn.textContent = 'Show'; }
+}
+
+// ─────────────────────────────────────────────
+// LOCAL SERVER (PaddleOCR / EasyOCR)
+// ─────────────────────────────────────────────
+const SERVER_URL = 'http://localhost:5050';
+
+async function checkServer() {
+  const dot = document.getElementById('serverDot');
+  const msg = document.getElementById('serverMsg');
+  // Update dropdown dots too
+  ['paddle','easy'].forEach(e => {
+    const d = document.getElementById(`dot_${e}`);
+    if (d) d.style.color = '#aaa';
+  });
+  dot.style.color = '#aaa';
+  msg.textContent = 'Checking…';
+  try {
+    const resp = await fetch(`${SERVER_URL}/health`, { signal: AbortSignal.timeout(2500) });
+    const data = await resp.json();
+    const engines = data.engines || [];
+    dot.style.color = '#4caf50';
+    msg.textContent = `Server running — available: ${engines.map(e => e === 'paddle' ? 'PaddleOCR' : 'EasyOCR').join(', ') || 'none'}`;
+    engines.forEach(e => {
+      const d = document.getElementById(`dot_${e}`);
+      if (d) d.style.color = '#4caf50';
+    });
+    return engines;
+  } catch {
+    dot.style.color = '#e53e3e';
+    msg.textContent = 'Server not found — click "How to start" for instructions';
+    return [];
+  }
+}
+
+async function ocrLocalServer(engine, lang, dataUrl) {
+  const base64 = dataUrl.split(',')[1];
+  const resp = await fetch(`${SERVER_URL}/ocr`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ engine, lang, image: base64 }),
+    signal: AbortSignal.timeout(60000), // models can be slow on first load
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || `HTTP ${resp.status}`);
+  }
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error);
+  return (data.text || '').trim();
+}
+
+function showServerHelp() {
+  document.getElementById('serverHelpModal').style.display = 'flex';
+}
+
+function saveApiKey() {
+  const key = document.getElementById('apiKeyInput').value;
+  if (!selectedModel) return;
+  localStorage.setItem(`ocr_apikey_${selectedModel}`, key);
+  const badge = document.getElementById('savedBadge');
+  badge.style.display = 'inline';
+  clearTimeout(saveApiKey._t);
+  saveApiKey._t = setTimeout(() => { badge.style.display = 'none'; }, 1800);
+}
+
+function loadSavedSettings() {
+  // Restore last used model
+  const savedModel = localStorage.getItem('ocr_last_model');
+  if (savedModel) {
+    const labels = { tesseract: 'Tesseract.js (offline)', google: 'Google Vision API', claude: 'Claude Vision API' };
+    if (labels[savedModel]) selectModel(savedModel, labels[savedModel]);
+  }
+  // Restore API key for the restored model (done inside selectModel → but key load needs explicit call)
+  restoreApiKey();
+}
+
+function restoreApiKey() {
+  if (!selectedModel || selectedModel === 'tesseract') return;
+  const saved = localStorage.getItem(`ocr_apikey_${selectedModel}`);
+  if (saved) {
+    document.getElementById('apiKeyInput').value = saved;
+    document.getElementById('savedBadge').style.display = 'inline';
+    setTimeout(() => { document.getElementById('savedBadge').style.display = 'none'; }, 2000);
+  }
+}
+
+// ─────────────────────────────────────────────
+// GET CROPPED IMAGE DATA URL
+// ─────────────────────────────────────────────
+function getCroppedDataUrl() {
+  if (!currentImage) return null;
+  const tmp = document.createElement('canvas');
+  const ctx = tmp.getContext('2d');
+
+  if (selection && selection.w > 5 && selection.h > 5) {
+    // selection is already in image pixel coords — no scaling needed
+    const sx = Math.max(0, Math.round(selection.x));
+    const sy = Math.max(0, Math.round(selection.y));
+    const sw = Math.min(Math.round(selection.w), currentImage.width  - sx);
+    const sh = Math.min(Math.round(selection.h), currentImage.height - sy);
+
+    if (sw > 0 && sh > 0) {
+      tmp.width  = sw;
+      tmp.height = sh;
+      ctx.drawImage(currentImage, sx, sy, sw, sh, 0, 0, sw, sh);
+      return tmp.toDataURL('image/png');
+    }
+  }
+  tmp.width  = currentImage.width;
+  tmp.height = currentImage.height;
+  ctx.drawImage(currentImage, 0, 0);
+  return tmp.toDataURL('image/png');
+}
+
+// ─────────────────────────────────────────────
+// OCR ENGINES
+// ─────────────────────────────────────────────
+
+// --- Tesseract.js ---
+async function ocrTesseract(langCode, dataUrl, rowId) {
+  const result = await Tesseract.recognize(dataUrl, langCode, {
+    logger: m => {
+      if (m.status === 'recognizing text') {
+        setRowProgress(rowId, Math.round(m.progress * 100));
+      }
+    }
+  });
+  return result.data.text.trim();
+}
+
+// --- Google Cloud Vision API ---
+async function ocrGoogleVision(langHint, dataUrl, apiKey) {
+  const base64 = dataUrl.split(',')[1];
+  const resp = await fetch(
+    `https://vision.googleapis.com/v1/images:annotate?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requests: [{
+          image: { content: base64 },
+          features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
+          imageContext: { languageHints: [langHint] }
+        }]
+      })
+    }
+  );
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+  const data = await resp.json();
+  if (data.error)                    throw new Error(data.error.message);
+  if (data.responses[0].error)       throw new Error(data.responses[0].error.message);
+  const ann = data.responses[0].fullTextAnnotation;
+  return ann ? ann.text.trim() : '';
+}
+
+// --- Claude Vision API ---
+async function ocrClaudeVision(langName, dataUrl, apiKey) {
+  const base64   = dataUrl.split(',')[1];
+  const mimeType = dataUrl.split(';')[0].split(':')[1];
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 4096,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
+          { type: 'text', text:
+            `Extract ALL text in ${langName} from this image using OCR. ` +
+            `Return ONLY the extracted text — no commentary, no formatting, no explanation. ` +
+            `If there is no ${langName} text, return an empty string.`
+          }
+        ]
+      }]
+    })
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${resp.status}`);
+  }
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.content[0].text.trim();
+}
+
+// ─────────────────────────────────────────────
+// MAIN PROCESS
+// ─────────────────────────────────────────────
+async function processOCR() {
+  if (isProcessing) return;
+  if (!currentImage) { showToast('Please load an image first.', 'error'); return; }
+  if (!selectedModel) { showToast('Please select an OCR model.', 'error'); return; }
+  if (langRows.length === 0) { showToast('Please add at least one language row.', 'error'); return; }
+
+  const apiKey = document.getElementById('apiKeyInput').value.trim();
+  if ((selectedModel === 'google' || selectedModel === 'claude') && !apiKey) {
+    showToast('Please enter your API key.', 'error'); return;
+  }
+  if ((selectedModel === 'paddle' || selectedModel === 'easy')) {
+    const running = await checkServer();
+    if (!running.includes(selectedModel)) {
+      showToast(`Local server is not running. Please start ocr_server.py first.`, 'error');
+      return;
+    }
+  }
+
+  isProcessing = true;
+  setProgress(5);
+  setStatus('Preparing image…');
+
+  // Clear previous results
+  langRows.forEach(r => {
+    const ta = document.getElementById(`ta_${r.id}`);
+    if (ta) { ta.value = ''; ta.classList.remove('error-state'); ta.style.height = ''; }
+    showSpinner(r.id, false);
+  });
+
+  const dataUrl = getCroppedDataUrl();
+
+  // Run all languages
+  const total = langRows.length;
+  let done = 0;
+
+  const tasks = langRows.map(async (row) => {
+    showSpinner(row.id, true);
+    try {
+      let text = '';
+      if (selectedModel === 'tesseract') {
+        const code = TESSERACT_MAP[row.lang] || 'eng';
+        text = await ocrTesseract(code, dataUrl, row.id);
+      } else if (selectedModel === 'google') {
+        const hint = GOOGLE_LANG_MAP[row.lang] || row.lang.toLowerCase();
+        text = await ocrGoogleVision(hint, dataUrl, apiKey);
+      } else if (selectedModel === 'claude') {
+        const name = LANG_NAMES[row.lang] || row.lang;
+        text = await ocrClaudeVision(name, dataUrl, apiKey);
+      } else if (selectedModel === 'paddle' || selectedModel === 'easy') {
+        text = await ocrLocalServer(selectedModel, row.lang, dataUrl);
+      }
+      setRowText(row.id, text || '(no text detected)');
+    } catch(err) {
+      setRowText(row.id, `⚠ Error: ${err.message}`, true);
+    } finally {
+      showSpinner(row.id, false);
+      done++;
+      setProgress(5 + Math.round((done / total) * 90));
+      setStatus(`Processed ${done}/${total} languages…`);
+    }
+  });
+
+  await Promise.allSettled(tasks);
+
+  setProgress(100);
+  setStatus('Done ✓');
+  showToast('OCR complete!', 'success');
+  setTimeout(() => setProgress(0), 800);
+  isProcessing = false;
+}
+
+// ─────────────────────────────────────────────
+// UI HELPERS
+// ─────────────────────────────────────────────
+function setRowText(id, text, isError = false) {
+  const ta = document.getElementById(`ta_${id}`);
+  if (!ta) return;
+  ta.value = text;
+  if (isError) ta.classList.add('error-state');
+  // Auto-resize
+  ta.style.height = 'auto';
+  ta.style.height = Math.max(42, ta.scrollHeight) + 'px';
+}
+
+function showSpinner(id, show) {
+  const sp = document.getElementById(`sp_${id}`);
+  if (sp) sp.classList.toggle('active', show);
+}
+
+function setRowProgress(id, pct) {
+  // Could enhance per-row progress; for now just global
+}
+
+function setProgress(pct) {
+  document.getElementById('progressFill').style.width = pct + '%';
+}
+
+function setStatus(msg) {
+  document.getElementById('toolbarStatus').textContent = msg;
+}
+
+let toastTimer;
+function showToast(msg, type = 'info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// ─────────────────────────────────────────────
+// KEYBOARD SHORTCUTS
+// ─────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  const tag = document.activeElement.tagName;
+  const isInput = (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT');
+
+  if (e.key === 'Enter' && !e.shiftKey && !isInput) {
+    e.preventDefault();
+    processOCR();
+  }
+  if (e.key === 'Escape') {
+    if (!isInput) reframe();
+  }
+});
+
+// ─────────────────────────────────────────────
+// ZOOM
+// ─────────────────────────────────────────────
+function updateZoomLabel(fitScale) {
+  const label = document.getElementById('zoomLabel');
+  if (!label || !currentImage) return;
+  if (fitScale === undefined) {
+    const mW = canvasCont.clientWidth || 500;
+    const mH = canvasCont.clientHeight || 460;
+    fitScale = Math.min(1, mW / currentImage.width, mH / currentImage.height);
+  }
+  const pct = Math.round(fitScale * zoomLevel * 100);
+  label.textContent = pct + '%';
+}
+
+function zoomIn() {
+  if (!currentImage) return;
+  zoomLevel = Math.min(ZOOM_MAX, zoomLevel * 1.25);
+  renderCanvas();
+}
+
+function zoomOut() {
+  if (!currentImage) return;
+  zoomLevel = Math.max(ZOOM_MIN, zoomLevel / 1.25);
+  renderCanvas();
+}
+
+function zoomFit() {
+  if (!currentImage) return;
+  zoomLevel = 1.0;
+  renderCanvas();
+  canvasCont.scrollLeft = 0;
+  canvasCont.scrollTop  = 0;
+}
+
+// Wheel: zoom (vertical) / pan (horizontal or Shift+vertical)
+canvasCont.addEventListener('wheel', e => {
+  if (!currentImage) return;
+  e.preventDefault();
+
+  // ── Horizontal scroll ──────────────────────────────────────────────
+  // Triggered by: physical horizontal wheel (deltaX) or Shift+vertical
+  const horizDelta = e.shiftKey ? e.deltaY : e.deltaX;
+  const isHoriz = e.shiftKey
+    ? (e.deltaY !== 0 && e.deltaX === 0)
+    : (Math.abs(e.deltaX) > Math.abs(e.deltaY));
+
+  if (isHoriz) {
+    canvasCont.scrollLeft += horizDelta;
+    return;
+  }
+
+  // ── Zoom toward cursor (vertical wheel) ────────────────────────────
+  const contRect = canvasCont.getBoundingClientRect();
+  const cursorX  = e.clientX - contRect.left;
+  const cursorY  = e.clientY - contRect.top;
+  const contW    = canvasCont.clientWidth;
+  const contH    = canvasCont.clientHeight;
+
+  const oldDispW = imgCanvas.offsetWidth;
+  const oldDispH = imgCanvas.offsetHeight;
+
+  const oldBaseX = Math.max(0, (contW - oldDispW) / 2);
+  const oldBaseY = Math.max(0, (contH - oldDispH) / 2);
+
+  const canvasX = cursorX + canvasCont.scrollLeft - oldBaseX;
+  const canvasY = cursorY + canvasCont.scrollTop  - oldBaseY;
+
+  const fracX = canvasX / oldDispW;
+  const fracY = canvasY / oldDispH;
+
+  const factor = e.deltaY > 0 ? (1 / 1.15) : 1.15;
+  zoomLevel = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoomLevel * factor));
+  renderCanvas();
+
+  const newDispW = imgCanvas.offsetWidth;
+  const newDispH = imgCanvas.offsetHeight;
+  const newBaseX = Math.max(0, (contW - newDispW) / 2);
+  const newBaseY = Math.max(0, (contH - newDispH) / 2);
+
+  canvasCont.scrollLeft = newBaseX + fracX * newDispW - cursorX;
+  canvasCont.scrollTop  = newBaseY + fracY * newDispH - cursorY;
+}, { passive: false });
+
+// ─────────────────────────────────────────────
+// PANEL RESIZER
+// ─────────────────────────────────────────────
+(function () {
+  const resizer   = document.getElementById('panelResizer');
+  const leftPanel = document.getElementById('leftPanel');
+  let dragging = false;
+  let startX   = 0;
+  let startW   = 0;
+
+  resizer.addEventListener('mousedown', e => {
+    dragging = true;
+    startX   = e.clientX;
+    startW   = leftPanel.offsetWidth;
+    resizer.classList.add('active');
+    document.body.style.cursor     = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const newW = Math.max(220, Math.min(startW + (e.clientX - startX), window.innerWidth - 280));
+    leftPanel.style.width    = newW + 'px';
+    leftPanel.style.minWidth = newW + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    resizer.classList.remove('active');
+    document.body.style.cursor     = '';
+    document.body.style.userSelect = '';
+    if (currentImage) renderCanvas(); // re-fit image to new panel size
+  });
+})();
+
+// Resize observer: re-render canvas when the left panel changes size
+const resizeObs = new ResizeObserver(() => { if (currentImage) renderCanvas(); });
+resizeObs.observe(canvasCont); // observe the container for size changes
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+initDefaultRows();
+loadSavedSettings();
+</script>
+</body>
+</html>
