@@ -161,6 +161,10 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
+        // ── 画像・CSVのベースURL ──────────────────────────────────────────────
+        // GCSバケットに移行済み。ローカルで動かす場合は '' に戻す。
+        const GCS_BASE = 'https://storage.googleapis.com/bkk2025-public-images';
+
         // マップの初期化（バンコク・ヤワラート中心）
         const map = L.map('map').setView([13.7465, 100.5310], 15);
 
@@ -271,7 +275,7 @@
         }
 
         // メインのデータ読み込みとマーカー追加
-        fetch('metadata.csv')
+        fetch(GCS_BASE ? `${GCS_BASE}/metadata.csv` : 'metadata.csv')
             .then(response => {
                 if (!response.ok) throw new Error('CSVファイルが見つかりません');
                 return response.text();
@@ -349,7 +353,7 @@
                     const popupContent = `
                         <div class="popup-content">
                             <div class="popup-main">
-                                <img src="images/${row['filename']}"
+                                <img src="${GCS_BASE ? GCS_BASE + '/images/' + row['filename'] : 'images/' + row['filename']}"
                                      class="popup-image"
                                      alt="看板写真"
                                      onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22200%22%3E%3Crect fill=%22%23ddd%22 width=%22300%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22%3E画像なし%3C/text%3E%3C/svg%3E'">
