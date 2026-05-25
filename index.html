@@ -218,11 +218,15 @@
             flex-shrink: 0;
             padding: 20px;
             overflow-y: auto;
-            border-left: 1px solid #ecf0f1;
+            border-left: 1px solid rgba(255,255,255,0.15);
             font-size: 13px;
+            color: #e0e0e0;
         }
+        #lightbox-info strong { color: #ffffff; }
         #lightbox-info .popup-meta table { width: 100%; }
-        #lightbox-info .popup-footer { font-size: 11px; }
+        #lightbox-info .popup-meta td:first-child { color: #9ab; white-space: nowrap; width: 90px; }
+        #lightbox-info .popup-meta td:last-child { color: #e0e0e0; }
+        #lightbox-info .popup-footer { font-size: 11px; color: #778; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 6px; margin-top: 8px; }
         #lightbox-close {
             position: absolute;
             top: 10px;
