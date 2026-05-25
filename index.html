@@ -278,8 +278,13 @@
                     const signType    = row['sign_type']      || '';
                     const layout      = row['layout']         || '';
                     const thHead      = row['th_head']        || '';
-                    const zhST        = row['zh_s-t']         || '';
-                    const zhTypeface  = row['zh_typeface']    || '';
+                    const zhST          = row['zh_s-t']           || '';
+                    const zhTypeface    = row['zh_typeface']      || '';
+                    const zhFiveScript  = row['zh_five script']   || '';
+
+                    const zhGlyph = zhST.toLowerCase().includes('t') ? 'Traditional'
+                                  : zhST.toLowerCase().includes('s') ? 'Simplified'
+                                  : '';
                     const zhDir       = row['zh_direction']   || '';
                     const enTypeface  = row['en_typeface']    || '';
                     const clrScript   = row['clr_script']     || '';
@@ -324,7 +329,8 @@
                                     ${metaRow('Layout',      layout)}
                                     ${metaRow('Direction',   zhDir)}
                                     ${metaRow('TH head',     thHead)}
-                                    ${metaRow('ZH typeface', zhTypeface + (zhST ? ` (${zhST})` : ''))}
+                                    ${metaRow('ZH Glyph',    zhGlyph)}
+                                    ${metaRow('ZH Typeface', [zhTypeface, zhFiveScript ? zhFiveScript + ' style' : ''].filter(Boolean).join(' '))}
                                     ${metaRow('EN typeface', enTypeface)}
                                     ${metaRow('Colors',      colorCell)}
                                     ${metaRow('Dimension',   dim)}
