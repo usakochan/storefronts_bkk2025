@@ -26,11 +26,17 @@
             border-radius: 4px;
         }
         .popup-content {
-            max-width: 320px;
+            display: flex;
+            gap: 0;
+            align-items: flex-start;
             font-size: 13px;
         }
         .popup-content strong {
             color: #2c3e50;
+        }
+        .popup-main {
+            width: 300px;
+            flex-shrink: 0;
         }
         .popup-texts {
             margin-bottom: 8px;
@@ -39,13 +45,36 @@
             margin: 3px 0;
             line-height: 1.4;
         }
-        .popup-meta {
-            margin-top: 8px;
+        .popup-expand-btn {
+            display: block;
+            width: 100%;
+            margin-top: 6px;
+            padding: 4px 0;
+            background: none;
+            border: none;
             border-top: 1px solid #ecf0f1;
-            padding-top: 8px;
+            color: #95a5a6;
+            font-size: 11px;
+            cursor: pointer;
+            text-align: right;
+        }
+        .popup-expand-btn:hover {
+            color: #2c3e50;
+        }
+        .popup-side {
+            max-width: 0;
+            overflow: hidden;
+            transition: max-width 0.25s ease, padding-left 0.25s ease;
+            padding-left: 0;
+            border-left: none;
+        }
+        .popup-side.open {
+            max-width: 260px;
+            padding-left: 12px;
+            border-left: 1px solid #ecf0f1;
         }
         .popup-meta table {
-            width: 100%;
+            width: 220px;
             border-collapse: collapse;
             font-size: 12px;
         }
@@ -233,6 +262,12 @@
             return `<tr><td>${label}</td><td>${value}</td></tr>`;
         }
 
+        function togglePopupMeta(btn) {
+            const side = btn.closest('.popup-content').querySelector('.popup-side');
+            side.classList.toggle('open');
+            btn.textContent = side.classList.contains('open') ? 'Hide ‹' : 'Details ›';
+        }
+
         // メインのデータ読み込みとマーカー追加
         fetch('metadata.csv')
             .then(response => {
@@ -311,48 +346,54 @@
 
                     const popupContent = `
                         <div class="popup-content">
-                            <img src="images/${row['filename']}"
-                                 class="popup-image"
-                                 alt="看板写真"
-                                 onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22200%22%3E%3Crect fill=%22%23ddd%22 width=%22300%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22%3E画像なし%3C/text%3E%3C/svg%3E'">
+                            <div class="popup-main">
+                                <img src="images/${row['filename']}"
+                                     class="popup-image"
+                                     alt="看板写真"
+                                     onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22200%22%3E%3Crect fill=%22%23ddd%22 width=%22300%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22%3E画像なし%3C/text%3E%3C/svg%3E'">
 
-                            <div class="popup-texts">
-                                ${thText.trim() ? `<div><strong>TH:</strong> ${thText}</div>` : ''}
-                                ${zhText.trim() ? `<div><strong>ZH:</strong> ${zhText}</div>` : ''}
-                                ${enText.trim() ? `<div><strong>EN:</strong> ${enText}</div>` : ''}
+                                <div class="popup-texts">
+                                    ${thText.trim() ? `<div><strong>TH:</strong> ${thText}</div>` : ''}
+                                    ${zhText.trim() ? `<div><strong>ZH:</strong> ${zhText}</div>` : ''}
+                                    ${enText.trim() ? `<div><strong>EN:</strong> ${enText}</div>` : ''}
+                                </div>
+
+                                <div style="margin: 6px 0;">
+                                    ${createLanguageLabels(languages)}
+                                </div>
+
+                                <button class="popup-expand-btn" onclick="togglePopupMeta(this)">Details ›</button>
                             </div>
 
-                            <div style="margin: 6px 0;">
-                                ${createLanguageLabels(languages)}
-                            </div>
+                            <div class="popup-side">
+                                <div class="popup-meta">
+                                    <table>
+                                        ${metaRow('Sign type',   signType)}
+                                        ${metaRow('Layout',      layout)}
+                                        ${metaRow('Direction',   zhDir)}
+                                        ${metaRow('TH head',     thHead)}
+                                        ${metaRow('ZH Glyph',    zhGlyph)}
+                                        ${metaRow('ZH Typeface', [zhTypeface, zhFiveScript ? zhFiveScript + ' style' : ''].filter(Boolean).join(' '))}
+                                        ${metaRow('EN typeface', enTypeface)}
+                                        ${metaRow('Colors',      colorCell)}
+                                        ${metaRow('Dimension',   dim)}
+                                        ${metaRow('Materials',   mtrlCell)}
+                                        ${metaRow('Writing',     writingTech)}
+                                        ${metaRow('Arch type',   archType)}
+                                        ${metaRow('Business',    bizType)}
+                                        ${metaRow('Status',      openClose)}
+                                    </table>
+                                </div>
 
-                            <div class="popup-meta">
-                                <table>
-                                    ${metaRow('Sign type',   signType)}
-                                    ${metaRow('Layout',      layout)}
-                                    ${metaRow('Direction',   zhDir)}
-                                    ${metaRow('TH head',     thHead)}
-                                    ${metaRow('ZH Glyph',    zhGlyph)}
-                                    ${metaRow('ZH Typeface', [zhTypeface, zhFiveScript ? zhFiveScript + ' style' : ''].filter(Boolean).join(' '))}
-                                    ${metaRow('EN typeface', enTypeface)}
-                                    ${metaRow('Colors',      colorCell)}
-                                    ${metaRow('Dimension',   dim)}
-                                    ${metaRow('Materials',   mtrlCell)}
-                                    ${metaRow('Writing',     writingTech)}
-                                    ${metaRow('Arch type',   archType)}
-                                    ${metaRow('Business',    bizType)}
-                                    ${metaRow('Status',      openClose)}
-                                </table>
-                            </div>
-
-                            <div class="popup-footer">
-                                photo_id: ${row['photo_id']} &nbsp;|&nbsp; ${row['filename']}
+                                <div class="popup-footer">
+                                    photo_id: ${row['photo_id']} &nbsp;|&nbsp; ${row['filename']}
+                                </div>
                             </div>
                         </div>
                     `;
 
                     marker.bindPopup(popupContent, {
-                        maxWidth: 340,
+                        maxWidth: 620,
                         className: 'custom-popup'
                     });
                 });
