@@ -282,10 +282,13 @@
                     const zhTypeface    = row['zh_typeface']      || '';
                     const zhFiveScript  = row['zh_five script']   || '';
 
-                    const zhGlyph = zhST.toLowerCase().includes('t') ? 'Traditional'
-                                  : zhST.toLowerCase().includes('s') ? 'Simplified'
+                    const zhGlyph = zhST.toLowerCase().includes('t') ? 'traditional'
+                                  : zhST.toLowerCase().includes('s') ? 'simplified'
                                   : '';
-                    const zhDir       = row['zh_direction']   || '';
+                    const zhDirRaw    = row['zh_direction']   || '';
+                    const zhDir       = zhDirRaw.toLowerCase().includes('rtl') ? 'right to left'
+                                      : zhDirRaw.toLowerCase().includes('ltr') ? 'left to right'
+                                      : zhDirRaw;
                     const enTypeface  = row['en_typeface']    || '';
                     const clrScript   = row['clr_script']     || '';
                     const clrBack     = row['clr_back']       || '';
