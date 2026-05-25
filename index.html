@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -125,7 +125,7 @@
     </style>
 </head>
 <body>
-    <div id="loading">Loading data...</div>
+    <div id="loading">データを読み込み中...</div>
     <div id="map"></div>
 
     <!-- Leaflet JS -->
@@ -146,7 +146,7 @@
             'thai':    '#4A90E2',   // 青
             'chinese': '#E74C3C',   // 赤
             'english': '#2ECC71',   // 緑
-            'mixed':   '#F39C12'    // オレンジ
+            'mixed':   '#F1C40F'    // 黄色
         };
 
         // カスタムアイコン作成関数
@@ -236,12 +236,12 @@
         // メインのデータ読み込みとマーカー追加
         fetch('metadata.csv')
             .then(response => {
-                if (!response.ok) throw new Error('metadata.csv not found');
+                if (!response.ok) throw new Error('CSVファイルが見つかりません');
                 return response.text();
             })
             .then(csvText => {
                 const data = parseCSV(csvText);
-                console.log(`Loaded ${data.length} records`);
+                console.log(`${data.length}件のデータを読み込みました`);
 
                 let validMarkers = 0;
                 const bounds = [];
@@ -251,7 +251,7 @@
                     const lng = parseFloat(row['longitude']);
 
                     if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
-                        console.warn(`No GPS: ${row['filename']}`);
+                        console.warn(`GPS情報なし: ${row['filename']}`);
                         return;
                     }
 
@@ -305,8 +305,8 @@
                         <div class="popup-content">
                             <img src="images/${row['filename']}"
                                  class="popup-image"
-                                 alt="storefront photo"
-                                 onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22200%22%3E%3Crect fill=%22%23ddd%22 width=%22300%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22%3ENo image%3C/text%3E%3C/svg%3E'">
+                                 alt="看板写真"
+                                 onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22200%22%3E%3Crect fill=%22%23ddd%22 width=%22300%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22%3E画像なし%3C/text%3E%3C/svg%3E'">
 
                             <div class="popup-texts">
                                 ${thText.trim() ? `<div><strong>TH:</strong> ${thText}</div>` : ''}
@@ -353,16 +353,16 @@
                     map.fitBounds(bounds, { padding: [50, 50] });
                 }
 
-                console.log(`${validMarkers} markers placed`);
+                console.log(`${validMarkers}個のマーカーを表示しました`);
                 document.getElementById('loading').style.display = 'none';
             })
             .catch(error => {
-                console.error('Error:', error);
+                console.error('エラー:', error);
                 document.getElementById('loading').innerHTML = `
                     <div style="color: #e74c3c;">
-                        <strong>Error</strong><br>
+                        <strong>エラー</strong><br>
                         ${error.message}<br>
-                        <small style="color: #7f8c8d;">Check that metadata.csv is in the same directory.</small>
+                        <small style="color: #7f8c8d;">metadata.csv が同じディレクトリにあるか確認してください</small>
                     </div>
                 `;
             });
@@ -409,7 +409,7 @@
                     <span style="font-weight: normal; font-size: 13px;">Linguistic Landscape Map</span>
                 </h3>
                 <p style="margin: 5px 0 0 0; font-size: 12px; color: #7f8c8d;">
-                    Bangkok shopfront fascias — script &amp; language data
+                    タイ・バンコクのショップファサードの言語景観マップ
                 </p>
             `;
             return div;
