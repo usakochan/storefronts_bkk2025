@@ -266,6 +266,8 @@
             const side = btn.closest('.popup-content').querySelector('.popup-side');
             side.classList.toggle('open');
             btn.textContent = side.classList.contains('open') ? 'Hide ‹' : 'Details ›';
+            // CSS transition (0.25s) 完了後に Leaflet のポップアップサイズを再計算
+            setTimeout(() => { if (map._popup) map._popup.update(); }, 270);
         }
 
         // メインのデータ読み込みとマーカー追加
