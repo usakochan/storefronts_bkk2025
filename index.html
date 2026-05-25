@@ -264,7 +264,8 @@
             return `<tr><td>${label}</td><td>${value}</td></tr>`;
         }
 
-        function togglePopupMeta(btn) {
+        function togglePopupMeta(btn, e) {
+            e.stopPropagation();
             const side = btn.closest('.popup-content').querySelector('.popup-side');
             const isOpen = side.classList.toggle('open');
             btn.textContent = isOpen ? 'Hide ‹' : 'Details ›';
@@ -365,7 +366,7 @@
                                     ${createLanguageLabels(languages)}
                                 </div>
 
-                                <button class="popup-expand-btn" onclick="togglePopupMeta(this)">Details ›</button>
+                                <button class="popup-expand-btn" onclick="togglePopupMeta(this, event)">Details ›</button>
                             </div>
 
                             <div class="popup-side">
