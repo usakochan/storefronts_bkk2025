@@ -289,6 +289,10 @@
             }
         }
 
+        // ポップアップ開閉時に map-pane の z-index を上げてコントロールより前面に出す
+        map.on('popupopen',  function() { map.getPanes().mapPane.style.zIndex = '1500'; });
+        map.on('popupclose', function() { map.getPanes().mapPane.style.zIndex = ''; });
+
         // メインのデータ読み込みとマーカー追加
         fetch('metadata.csv')
             .then(response => {
