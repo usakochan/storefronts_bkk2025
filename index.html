@@ -61,6 +61,11 @@
         .popup-expand-btn:hover {
             color: #2c3e50;
         }
+        .btn-arrow {
+            font-size: 1.4em;
+            line-height: 0;
+            vertical-align: middle;
+        }
         .popup-side {
             display: none;
             width: 240px;
@@ -141,6 +146,9 @@
             z-index: 1000;
             font-size: 16px;
             color: #2c3e50;
+        }
+        .leaflet-top.leaflet-left {
+            z-index: 600;
         }
         .custom-marker {
             cursor: pointer;
@@ -268,7 +276,7 @@
             e.stopPropagation();
             const side = btn.closest('.popup-content').querySelector('.popup-side');
             const isOpen = side.classList.toggle('open');
-            btn.textContent = isOpen ? 'Hide ‹' : 'Details ›';
+            btn.innerHTML = isOpen ? '<span class="btn-arrow">‹</span> Hide' : 'Details <span class="btn-arrow">›</span>';
             if (map._popup && map._popup._contentNode) {
                 const node = map._popup._contentNode;
                 const inner = btn.closest('.popup-content');
@@ -372,7 +380,7 @@
                                     ${createLanguageLabels(languages)}
                                 </div>
 
-                                <button class="popup-expand-btn" onclick="togglePopupMeta(this, event)">Details ›</button>
+                                <button class="popup-expand-btn" onclick="togglePopupMeta(this, event)">Details <span class="btn-arrow">›</span></button>
                             </div>
 
                             <div class="popup-side">
