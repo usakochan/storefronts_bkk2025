@@ -275,7 +275,7 @@
         }
 
         // メインのデータ読み込みとマーカー追加
-        fetch(GCS_BASE ? `${GCS_BASE}/metadata.csv` : 'metadata.csv')
+        fetch('metadata.csv')
             .then(response => {
                 if (!response.ok) throw new Error('CSVファイルが見つかりません');
                 return response.text();
