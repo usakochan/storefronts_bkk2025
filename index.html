@@ -269,7 +269,10 @@
             const side = btn.closest('.popup-content').querySelector('.popup-side');
             const isOpen = side.classList.toggle('open');
             btn.textContent = isOpen ? 'Hide ‹' : 'Details ›';
-            if (map._popup) map._popup.update();
+            if (map._popup) {
+                map._popup._updateLayout();
+                map._popup._updatePosition();
+            }
         }
 
         // メインのデータ読み込みとマーカー追加
