@@ -156,6 +156,89 @@
         .leaflet-popup-pane {
             z-index: 1100 !important;
         }
+        .popup-img-wrap {
+            position: relative;
+            display: inline-block;
+            cursor: zoom-in;
+        }
+        .popup-zoom-btn {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            background: rgba(0,0,0,0.45);
+            border: none;
+            border-radius: 4px;
+            padding: 4px 5px;
+            line-height: 0;
+            cursor: zoom-in;
+            color: white;
+        }
+        .popup-zoom-btn:hover { background: rgba(0,0,0,0.75); }
+        #lightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: rgba(0,0,0,0.82);
+            align-items: center;
+            justify-content: center;
+        }
+        #lightbox.open { display: flex; }
+        #lightbox-content {
+            background: white;
+            border-radius: 8px;
+            max-width: 92vw;
+            max-height: 92vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+        #lightbox-body {
+            display: flex;
+            overflow: auto;
+        }
+        #lightbox-img-side {
+            flex: 1 1 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #1a1a1a;
+            padding: 24px;
+            min-width: 300px;
+        }
+        #lightbox-img {
+            max-width: 100%;
+            max-height: calc(92vh - 48px);
+            object-fit: contain;
+            border-radius: 4px;
+        }
+        #lightbox-info {
+            width: 280px;
+            flex-shrink: 0;
+            padding: 20px;
+            overflow-y: auto;
+            border-left: 1px solid #ecf0f1;
+            font-size: 13px;
+        }
+        #lightbox-info .popup-meta table { width: 100%; }
+        #lightbox-info .popup-footer { font-size: 11px; }
+        #lightbox-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            font-size: 16px;
+            line-height: 1;
+            cursor: pointer;
+            z-index: 10;
+        }
+        #lightbox-close:hover { background: rgba(0,0,0,0.85); }
         .custom-marker {
             cursor: pointer;
             transition: transform 0.2s;
@@ -168,6 +251,16 @@
 <body>
     <div id="loading">データを読み込み中...</div>
     <div id="map"></div>
+
+    <div id="lightbox">
+        <div id="lightbox-body">
+            <div id="lightbox-img-side">
+                <img id="lightbox-img" src="" alt="">
+            </div>
+            <div id="lightbox-info"></div>
+        </div>
+        <button id="lightbox-close" onclick="closeLightbox()">✕</button>
+    </div>
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -278,6 +371,51 @@
             return `<tr><td>${label}</td><td>${value}</td></tr>`;
         }
 
+        const allRowData = {};
+
+        function openLightbox(filename, e) {
+            if (e) e.stopPropagation();
+            const d = allRowData[filename];
+            if (!d) return;
+            document.getElementById('lightbox-img').src = d.imgSrc;
+            document.getElementById('lightbox-info').innerHTML = `
+                <div style="margin-bottom:10px">${createLanguageLabels(d.languages)}</div>
+                <div class="popup-texts" style="margin-bottom:10px">
+                    ${d.thText ? `<div><strong>TH:</strong> ${d.thText}</div>` : ''}
+                    ${d.zhText ? `<div><strong>ZH:</strong> ${d.zhText}</div>` : ''}
+                    ${d.enText ? `<div><strong>EN:</strong> ${d.enText}</div>` : ''}
+                </div>
+                <div class="popup-meta">
+                    <table>
+                        ${metaRow('Sign type',   d.signType)}
+                        ${metaRow('Layout',      d.layout)}
+                        ${metaRow('Direction',   d.zhDir)}
+                        ${metaRow('TH head',     d.thHead)}
+                        ${metaRow('ZH Glyph',    d.zhGlyph)}
+                        ${metaRow('ZH Typeface', d.zhTypeface)}
+                        ${metaRow('EN typeface', d.enTypeface)}
+                        ${metaRow('Colors',      d.colorCell)}
+                        ${metaRow('Dimension',   d.dim)}
+                        ${metaRow('Materials',   d.mtrlCell)}
+                        ${metaRow('Writing',     d.writingTech)}
+                        ${metaRow('Arch type',   d.archType)}
+                        ${metaRow('Business',    d.bizType)}
+                        ${metaRow('Status',      d.openClose)}
+                    </table>
+                </div>
+                <div class="popup-footer">photo_id: ${d.photoId} | ${d.filename}</div>
+            `;
+            document.getElementById('lightbox').classList.add('open');
+        }
+
+        function closeLightbox() {
+            document.getElementById('lightbox').classList.remove('open');
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeLightbox();
+        });
+
         function togglePopupMeta(btn, e) {
             e.stopPropagation();
             const side = btn.closest('.popup-content').querySelector('.popup-side');
@@ -372,13 +510,31 @@
                         ? `${mtrlScript}${mtrlScript && mtrlBack ? ' / ' : ''}${mtrlBack}`
                         : '';
 
+                    const imgSrc = GCS_BASE ? `${GCS_BASE}/images/${row['filename']}` : `images/${row['filename']}`;
+                    const zhTypefaceLabel = [zhTypeface, zhFiveScript ? zhFiveScript + ' style' : ''].filter(Boolean).join(' ');
+
+                    allRowData[row['filename']] = {
+                        imgSrc, thText, zhText, enText, languages,
+                        signType, layout, zhDir, thHead, zhGlyph,
+                        zhTypeface: zhTypefaceLabel, enTypeface,
+                        colorCell, dim, mtrlCell, writingTech, archType, bizType, openClose,
+                        photoId: row['photo_id'], filename: row['filename']
+                    };
+
                     const popupContent = `
                         <div class="popup-content">
                             <div class="popup-main">
-                                <img src="${GCS_BASE ? GCS_BASE + '/images/' + row['filename'] : 'images/' + row['filename']}"
-                                     class="popup-image"
-                                     alt="看板写真"
-                                     onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22200%22%3E%3Crect fill=%22%23ddd%22 width=%22300%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22%3E画像なし%3C/text%3E%3C/svg%3E'">
+                                <div class="popup-img-wrap" onclick="openLightbox('${row['filename']}', event)">
+                                    <img src="${imgSrc}"
+                                         class="popup-image"
+                                         alt="看板写真"
+                                         onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22200%22%3E%3Crect fill=%22%23ddd%22 width=%22300%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22%3E画像なし%3C/text%3E%3C/svg%3E'">
+                                    <button class="popup-zoom-btn" title="拡大">
+                                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="white" stroke-width="2" stroke-linecap="round">
+                                            <path d="M1 5V1h4M9 1h4v4M13 9v4h-4M5 13H1V9"/>
+                                        </svg>
+                                    </button>
+                                </div>
 
                                 <div class="popup-texts">
                                     ${thText.trim() ? `<div><strong>TH:</strong> ${thText}</div>` : ''}
