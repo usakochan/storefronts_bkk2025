@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,7 +8,7 @@
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
+
     <style>
         body {
             margin: 0;
@@ -27,9 +27,46 @@
         }
         .popup-content {
             max-width: 320px;
+            font-size: 13px;
         }
         .popup-content strong {
             color: #2c3e50;
+        }
+        .popup-texts {
+            margin-bottom: 8px;
+        }
+        .popup-texts div {
+            margin: 3px 0;
+            line-height: 1.4;
+        }
+        .popup-meta {
+            margin-top: 8px;
+            border-top: 1px solid #ecf0f1;
+            padding-top: 8px;
+        }
+        .popup-meta table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        .popup-meta td {
+            padding: 2px 4px;
+            vertical-align: top;
+        }
+        .popup-meta td:first-child {
+            color: #7f8c8d;
+            white-space: nowrap;
+            width: 90px;
+        }
+        .popup-meta td:last-child {
+            color: #2c3e50;
+        }
+        .popup-footer {
+            margin-top: 8px;
+            font-size: 11px;
+            color: #95a5a6;
+            border-top: 1px solid #ecf0f1;
+            padding-top: 6px;
         }
         .language-label {
             display: inline-block;
@@ -63,6 +100,7 @@
             border-radius: 50%;
             border: 2px solid white;
             box-shadow: 0 0 3px rgba(0,0,0,0.3);
+            flex-shrink: 0;
         }
         #loading {
             position: absolute;
@@ -87,12 +125,12 @@
     </style>
 </head>
 <body>
-    <div id="loading">データを読み込み中...</div>
+    <div id="loading">Loading data...</div>
     <div id="map"></div>
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
+
     <script>
         // マップの初期化（バンコク・ヤワラート中心）
         const map = L.map('map').setView([13.7465, 100.5310], 15);
@@ -105,31 +143,28 @@
 
         // 言語ごとのマーカー色設定
         const languageColors = {
-            'thai': '#4A90E2',      // 青
+            'thai':    '#4A90E2',   // 青
             'chinese': '#E74C3C',   // 赤
             'english': '#2ECC71',   // 緑
-            'mixed': '#F39C12'      // オレンジ
-            // JP, KR, ARも要設定
+            'mixed':   '#F39C12'    // オレンジ
         };
 
         // カスタムアイコン作成関数
         function createMarkerIcon(languages) {
             let color = '#95A5A6'; // デフォルトグレー
-            
-            if (languages.includes('thai') && languages.includes('chinese')) {
+
+            const hasThai    = languages.includes('thai');
+            const hasChinese = languages.includes('chinese');
+            const hasEnglish = languages.includes('english');
+
+            if (hasThai && hasChinese) {
                 color = languageColors.mixed;
-            } else if (languages.includes('chinese')) {
+            } else if (hasChinese) {
                 color = languageColors.chinese;
-            } else if (languages.includes('thai')) {
+            } else if (hasThai) {
                 color = languageColors.thai;
-            } else if (languages.includes('english')) {
+            } else if (hasEnglish) {
                 color = languageColors.english;
-            } else if (languages.includes('japanese')) {
-                color = languageColors.japanese;
-            } else if (languages.includes('korean')) {
-                color = languageColors.korean;
-            } else if (languages.includes('arabic')) {
-                color = languageColors.arabic;
             }
 
             return L.divIcon({
@@ -150,29 +185,28 @@
         // CSV パース関数
         function parseCSV(csv) {
             const lines = csv.trim().split('\n');
-            const headers = lines[0].split(',');
-            
+            const headers = lines[0].split(',').map(h => h.trim());
+
             return lines.slice(1).map(line => {
-                // カンマ区切りだが、引用符内のカンマは無視
                 const values = [];
                 let current = '';
                 let inQuotes = false;
-                
+
                 for (let char of line) {
                     if (char === '"') {
                         inQuotes = !inQuotes;
                     } else if (char === ',' && !inQuotes) {
-                        values.push(current);
+                        values.push(current.trim());
                         current = '';
                     } else {
                         current += char;
                     }
                 }
-                values.push(current);
-                
+                values.push(current.trim());
+
                 const obj = {};
                 headers.forEach((header, index) => {
-                    obj[header.trim()] = values[index] ? values[index].trim() : '';
+                    obj[header] = values[index] !== undefined ? values[index] : '';
                 });
                 return obj;
             });
@@ -181,79 +215,129 @@
         // 言語ラベルのHTML生成
         function createLanguageLabels(languages) {
             const labels = {
-                'thai': 'ไทย',
+                'thai':    'ไทย',
                 'chinese': '中文',
-                'english': 'EN',
-                'japanese': '日本語',
-                'korean': 'KR', //ハングルでハングルって入れたい
-                'arabic': 'AR' //アラビックでアラビックって入れたい
+                'english': 'EN'
             };
-            
+
             return languages.map(lang => {
-                const bgcolor = languageColors[lang] + '30'; // 30 = 透明度
-                const textcolor = languageColors[lang];
-                return `<span class="language-label" style="background-color: ${bgcolor}; color: ${textcolor}">${labels[lang] || lang}</span>`;
+                const bgcolor   = (languageColors[lang] || '#95A5A6') + '30';
+                const textcolor = languageColors[lang] || '#95A5A6';
+                return `<span class="language-label" style="background-color:${bgcolor}; color:${textcolor}">${labels[lang] || lang}</span>`;
             }).join('');
+        }
+
+        // テーブル行ヘルパー（値が空なら非表示）
+        function metaRow(label, value) {
+            if (!value || !value.trim()) return '';
+            return `<tr><td>${label}</td><td>${value}</td></tr>`;
         }
 
         // メインのデータ読み込みとマーカー追加
         fetch('metadata.csv')
             .then(response => {
-                if (!response.ok) {
-                    throw new Error('CSVファイルが見つかりません');
-                }
+                if (!response.ok) throw new Error('metadata.csv not found');
                 return response.text();
             })
             .then(csvText => {
                 const data = parseCSV(csvText);
-                console.log(`${data.length}件のデータを読み込みました`);
-                
+                console.log(`Loaded ${data.length} records`);
+
                 let validMarkers = 0;
                 const bounds = [];
-                
+
                 data.forEach(row => {
-                    const lat = parseFloat(row.latitude);
-                    const lng = parseFloat(row.longitude);
-                    
+                    const lat = parseFloat(row['latitude']);
+                    const lng = parseFloat(row['longitude']);
+
                     if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
-                        console.warn(`GPS情報なし: ${row.filename}`);
+                        console.warn(`No GPS: ${row['filename']}`);
                         return;
                     }
 
                     bounds.push([lat, lng]);
                     validMarkers++;
 
-                    // 言語の判定
+                    // 言語の判定（CSVの列名に合わせて修正）
                     const languages = [];
-                    if (row.thai_text && row.thai_text.trim()) languages.push('thai');
-                    if (row.chinese_text && row.chinese_text.trim()) languages.push('chinese');
-                    if (row.english_text && row.english_text.trim()) languages.push('english');
-                    //if (row.english_text && row.japanese_text.trim()) languages.push('japanese');
-                    //if (row.english_text && row.korean_text.trim()) languages.push('korean');
-                    //if (row.english_text && row.arabic_text.trim()) languages.push('arabic');
+                    if (row['th_text'] && row['th_text'].trim())  languages.push('thai');
+                    if (row['zh_text'] && row['zh_text'].trim())  languages.push('chinese');
+                    if (row['en_text'] && row['en_text'].trim())  languages.push('english');
 
                     // マーカーの作成
                     const marker = L.marker([lat, lng], {
                         icon: createMarkerIcon(languages)
                     }).addTo(map);
 
-                    // ポップアップの内容
+                    // 表示テキスト
+                    const thText  = row['th_text']  || '';
+                    const zhText  = row['zh_text']  || '';
+                    const enText  = row['en_text']  || '';
+
+                    // メタデータ
+                    const signType    = row['sign_type']      || '';
+                    const layout      = row['layout']         || '';
+                    const thHead      = row['th_head']        || '';
+                    const zhST        = row['zh_s-t']         || '';
+                    const zhTypeface  = row['zh_typeface']    || '';
+                    const zhDir       = row['zh_direction']   || '';
+                    const enTypeface  = row['en_typeface']    || '';
+                    const clrScript   = row['clr_script']     || '';
+                    const clrBack     = row['clr_back']       || '';
+                    const dim         = row['dim']            || '';
+                    const mtrlScript  = row['mtrl_script']    || '';
+                    const mtrlBack    = row['mtrl_back']      || '';
+                    const writingTech = row['writing tech']   || '';
+                    const archType    = row['arch type']      || '';
+                    const bizType     = row['business type']  || '';
+                    const openClose   = row['open or close']  || '';
+                    // 色スウォッチ（script / back）
+                    const colorCell = (clrScript || clrBack)
+                        ? `${clrScript}${clrScript && clrBack ? ' / ' : ''}${clrBack}`
+                        : '';
+
+                    // 素材（script / back）
+                    const mtrlCell = (mtrlScript || mtrlBack)
+                        ? `${mtrlScript}${mtrlScript && mtrlBack ? ' / ' : ''}${mtrlBack}`
+                        : '';
+
                     const popupContent = `
                         <div class="popup-content">
-                            <img src="images/${row.filename}" 
-                                 class="popup-image" 
-                                 alt="看板写真"
-                                 onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22200%22%3E%3Crect fill=%22%23ddd%22 width=%22300%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22%3E画像なし%3C/text%3E%3C/svg%3E'">
-                            <div style="margin-bottom: 8px;">
-                                ${row.thai_text && row.thai_text.trim() ? `<div style="margin: 4px 0;"><strong>TH:</strong> ${row.thai_text}</div>` : ''}
-                                ${row.chinese_text && row.chinese_text.trim() ? `<div style="margin: 4px 0;"><strong>ZH:</strong> ${row.chinese_text}</div>` : ''}
-                                ${row.english_text && row.english_text.trim() ? `<div style="margin: 4px 0;"><strong>EN:</strong> ${row.english_text}</div>` : ''}
+                            <img src="images/${row['filename']}"
+                                 class="popup-image"
+                                 alt="storefront photo"
+                                 onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22200%22%3E%3Crect fill=%22%23ddd%22 width=%22300%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22%3ENo image%3C/text%3E%3C/svg%3E'">
+
+                            <div class="popup-texts">
+                                ${thText.trim() ? `<div><strong>TH:</strong> ${thText}</div>` : ''}
+                                ${zhText.trim() ? `<div><strong>ZH:</strong> ${zhText}</div>` : ''}
+                                ${enText.trim() ? `<div><strong>EN:</strong> ${enText}</div>` : ''}
                             </div>
-                            <div style="margin-top: 10px;">
+
+                            <div style="margin: 6px 0;">
                                 ${createLanguageLabels(languages)}
                             </div>
-                            <div style="margin-top: 8px; font-size: 11px; color: #7f8c8d;">
-                                ID: ${row.image_id} | ${row.filename}
+
+                            <div class="popup-meta">
+                                <table>
+                                    ${metaRow('Sign type',   signType)}
+                                    ${metaRow('Layout',      layout)}
+                                    ${metaRow('Direction',   zhDir)}
+                                    ${metaRow('TH head',     thHead)}
+                                    ${metaRow('ZH typeface', zhTypeface + (zhST ? ` (${zhST})` : ''))}
+                                    ${metaRow('EN typeface', enTypeface)}
+                                    ${metaRow('Colors',      colorCell)}
+                                    ${metaRow('Dimension',   dim)}
+                                    ${metaRow('Materials',   mtrlCell)}
+                                    ${metaRow('Writing',     writingTech)}
+                                    ${metaRow('Arch type',   archType)}
+                                    ${metaRow('Business',    bizType)}
+                                    ${metaRow('Status',      openClose)}
+                                </table>
+                            </div>
+
+                            <div class="popup-footer">
+                                photo_id: ${row['photo_id']} &nbsp;|&nbsp; ${row['filename']}
                             </div>
                         </div>
                     `;
@@ -269,18 +353,16 @@
                     map.fitBounds(bounds, { padding: [50, 50] });
                 }
 
-                console.log(`${validMarkers}個のマーカーを表示しました`);
-                
-                // ローディング表示を消す
+                console.log(`${validMarkers} markers placed`);
                 document.getElementById('loading').style.display = 'none';
             })
             .catch(error => {
-                console.error('エラー:', error);
+                console.error('Error:', error);
                 document.getElementById('loading').innerHTML = `
                     <div style="color: #e74c3c;">
-                        <strong>エラー</strong><br>
+                        <strong>Error</strong><br>
                         ${error.message}<br>
-                        <small style="color: #7f8c8d;">metadata.csv が同じディレクトリにあるか確認してください</small>
+                        <small style="color: #7f8c8d;">Check that metadata.csv is in the same directory.</small>
                     </div>
                 `;
             });
@@ -290,39 +372,44 @@
         legend.onAdd = function(map) {
             const div = L.DomUtil.create('div', 'legend');
             div.innerHTML = `
-                <h4>Scripts/Languages</h4>
+                <h4>Scripts / Languages</h4>
                 <div class="legend-item">
-                    <span class="legend-color" style="background-color: ${languageColors.thai}"></span>
-                    Thai-Only
+                    <span class="legend-color" style="background-color:${languageColors.thai}"></span>
+                    Thai only
                 </div>
                 <div class="legend-item">
-                    <span class="legend-color" style="background-color: ${languageColors.chinese}"></span>
-                    Chinese-Only
+                    <span class="legend-color" style="background-color:${languageColors.chinese}"></span>
+                    Chinese only
                 </div>
                 <div class="legend-item">
-                    <span class="legend-color" style="background-color: ${languageColors.english}"></span>
-                    English-Only
+                    <span class="legend-color" style="background-color:${languageColors.english}"></span>
+                    English only
                 </div>
                 <div class="legend-item">
-                    <span class="legend-color" style="background-color: ${languageColors.mixed}"></span>
-                    Multi (Thai+Chinese)
+                    <span class="legend-color" style="background-color:${languageColors.mixed}"></span>
+                    Thai + Chinese
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color:#95A5A6"></span>
+                    Other / Unknown
                 </div>
             `;
             return div;
         };
         legend.addTo(map);
 
-        // タイトルコントロール追加
+        // タイトルコントロール
         const info = L.control({position: 'topleft'});
         info.onAdd = function(map) {
             const div = L.DomUtil.create('div', 'legend');
             div.style.marginBottom = '10px';
             div.innerHTML = `
                 <h3 style="margin: 0; font-size: 16px; color: #2c3e50;">
-                    Storefronts in Bangkok<br><span style="font-weight: normal;">The Map of Linguistic Landscape</span>
+                    Storefronts in Bangkok<br>
+                    <span style="font-weight: normal; font-size: 13px;">Linguistic Landscape Map</span>
                 </h3>
                 <p style="margin: 5px 0 0 0; font-size: 12px; color: #7f8c8d;">
-                    タイ・バンコクのショップファサードの言語景観マップ
+                    Bangkok shopfront fascias — script &amp; language data
                 </p>
             `;
             return div;
@@ -331,14 +418,3 @@
     </script>
 </body>
 </html>
-```
-
-## ファイル構造
-```
-yaowarat-linguistic-landscape/
-├── index.html          ← このHTMLファイル
-├── metadata.csv        ← あなたのCSVファイル
-└── images/            ← 画像フォルダ
-    ├── IMG_2089.jpeg
-    ├── IMG_2090.jpeg
-    └── ...
