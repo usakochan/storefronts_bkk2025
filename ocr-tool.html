@@ -525,6 +525,36 @@ body {
 .copy-btn:hover { color: var(--dark); background: rgba(0,0,0,0.06); }
 .copy-btn.flash { color: var(--green-dark); }
 
+/* RTL→LTR toggle button (ZH row only) */
+.rtl-btn {
+  position: absolute;
+  right: 30px;
+  top: 8px;
+  background: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  letter-spacing: -0.5px;
+}
+.rtl-btn:hover { color: var(--teal); border-color: var(--teal); background: rgba(30,107,138,0.06); }
+.rtl-btn.active {
+  color: var(--teal);
+  border-color: var(--teal);
+  background: rgba(30,107,138,0.14);
+}
+
+/* ZH textarea: wider right padding to make room for RTL button */
+.zh-textarea {
+  padding-right: 60px !important;
+}
+
 .remove-btn {
   width: 24px;
   height: 24px;
@@ -858,6 +888,9 @@ let rowIdCounter = 0;
 let rowDragSrcId = null;
 let rowDragGhost  = null;
 
+// RTL toggle state per row: { [id]: { active: bool, original: string } }
+const rtlRowState = {};
+
 function clearRowDragStyles() {
   document.querySelectorAll('.lang-row').forEach(el =>
     el.classList.remove('row-drag-over', 'row-drag-below')
@@ -1179,16 +1212,18 @@ function renderRows() {
     const div = document.createElement('div');
     div.className = 'lang-row';
     div.dataset.id = row.id;
+    const isZH = row.lang === 'ZH';
     div.innerHTML = `
       <div class="drag-handle" title="Drag to reorder">
         <span></span><span></span><span></span>
       </div>
       <span class="lang-tag">${row.lang}</span>
       <div class="lang-input-wrap">
-        <textarea class="lang-textarea" id="ta_${row.id}"
+        <textarea class="lang-textarea${isZH ? ' zh-textarea' : ''}" id="ta_${row.id}"
           placeholder="Result will appear here…" readonly rows="2"
           title="${LANG_NAMES[row.lang] || row.lang}"></textarea>
-        <div class="lang-spinner" id="sp_${row.id}"></div>
+        <div class="lang-spinner" id="sp_${row.id}" style="${isZH ? 'right:58px' : ''}"></div>
+        ${isZH ? `<button class="rtl-btn" id="rtl_${row.id}" onclick="toggleRTL(${row.id})" title="Toggle RTL→LTR conversion">⇄LTR</button>` : ''}
         <button class="copy-btn" id="cp_${row.id}" onclick="copyRow(${row.id})" title="Copy to clipboard">⎘</button>
       </div>
       <button class="remove-btn" onclick="removeRow(${row.id})" title="Remove">−</button>
@@ -1233,12 +1268,50 @@ function copyRow(id) {
       btn.textContent = '✓';
       setTimeout(() => { btn.classList.remove('flash'); btn.textContent = '⎘'; }, 1200);
     }
-    showToast('Copied!', 'success');
+    const isLTR = rtlRowState[id] && rtlRowState[id].active;
+    showToast(isLTR ? 'Copied (RTL→LTR)!' : 'Copied!', 'success');
   }).catch(() => {
-    // Fallback
     ta.select(); document.execCommand('copy');
     showToast('Copied!', 'success');
   });
+}
+
+function toggleRTL(id) {
+  const ta  = document.getElementById(`ta_${id}`);
+  const btn = document.getElementById(`rtl_${id}`);
+  if (!ta || !btn) return;
+
+  if (!rtlRowState[id]) rtlRowState[id] = { active: false, original: '' };
+  const state = rtlRowState[id];
+
+  if (!state.active) {
+    if (!ta.value.trim()) { showToast('No text yet.', 'info'); return; }
+    state.original = ta.value;
+    state.active   = true;
+
+    // Split into lines, reverse characters within each line, then reverse line order.
+    // This handles RTL text where both column order and character order are flipped.
+    const converted = ta.value
+      .split('\n')
+      .map(line => [...line].reverse().join(''))
+      .reverse()
+      .join('\n');
+    ta.value = converted;
+
+    ta.style.height = 'auto';
+    ta.style.height = Math.max(42, ta.scrollHeight) + 'px';
+    btn.classList.add('active');
+    btn.title = 'RTL→LTR active — click to restore original';
+    showToast('Converted RTL → LTR', 'info');
+  } else {
+    ta.value = state.original;
+    ta.style.height = 'auto';
+    ta.style.height = Math.max(42, ta.scrollHeight) + 'px';
+    state.active = false;
+    btn.classList.remove('active');
+    btn.title = 'Toggle RTL→LTR conversion';
+    showToast('Restored original', 'info');
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -1578,6 +1651,12 @@ async function processOCR() {
 function setRowText(id, text, isError = false) {
   const ta = document.getElementById(`ta_${id}`);
   if (!ta) return;
+  // Reset RTL toggle if it was active (new OCR result = fresh state)
+  if (rtlRowState[id] && rtlRowState[id].active) {
+    rtlRowState[id].active = false;
+    const rtlBtn = document.getElementById(`rtl_${id}`);
+    if (rtlBtn) { rtlBtn.classList.remove('active'); rtlBtn.title = 'Toggle RTL→LTR conversion'; }
+  }
   ta.value = text;
   if (isError) ta.classList.add('error-state');
   // Auto-resize
@@ -1662,24 +1741,24 @@ function zoomFit() {
   canvasCont.scrollTop  = 0;
 }
 
-// Wheel: zoom (vertical) / pan (horizontal or Shift+vertical)
+// Wheel behaviour:
+//   plain two-finger scroll          → pan (X and Y)
+//   pinch gesture                    → zoom (browser sends ctrlKey=true for pinch on macOS)
+//   Cmd+scroll  or  Ctrl+scroll      → zoom
 canvasCont.addEventListener('wheel', e => {
   if (!currentImage) return;
   e.preventDefault();
 
-  // ── Horizontal scroll ──────────────────────────────────────────────
-  // Triggered by: physical horizontal wheel (deltaX) or Shift+vertical
-  const horizDelta = e.shiftKey ? e.deltaY : e.deltaX;
-  const isHoriz = e.shiftKey
-    ? (e.deltaY !== 0 && e.deltaX === 0)
-    : (Math.abs(e.deltaX) > Math.abs(e.deltaY));
+  const isZoom = e.ctrlKey || e.metaKey;
 
-  if (isHoriz) {
-    canvasCont.scrollLeft += horizDelta;
+  if (!isZoom) {
+    // ── Pan ────────────────────────────────────────────────────────────
+    canvasCont.scrollLeft += e.deltaX;
+    canvasCont.scrollTop  += e.deltaY;
     return;
   }
 
-  // ── Zoom toward cursor (vertical wheel) ────────────────────────────
+  // ── Zoom toward cursor ─────────────────────────────────────────────
   const contRect = canvasCont.getBoundingClientRect();
   const cursorX  = e.clientX - contRect.left;
   const cursorY  = e.clientY - contRect.top;
@@ -1688,17 +1767,19 @@ canvasCont.addEventListener('wheel', e => {
 
   const oldDispW = imgCanvas.offsetWidth;
   const oldDispH = imgCanvas.offsetHeight;
-
   const oldBaseX = Math.max(0, (contW - oldDispW) / 2);
   const oldBaseY = Math.max(0, (contH - oldDispH) / 2);
+  const canvasX  = cursorX + canvasCont.scrollLeft - oldBaseX;
+  const canvasY  = cursorY + canvasCont.scrollTop  - oldBaseY;
+  const fracX    = canvasX / oldDispW;
+  const fracY    = canvasY / oldDispH;
 
-  const canvasX = cursorX + canvasCont.scrollLeft - oldBaseX;
-  const canvasY = cursorY + canvasCont.scrollTop  - oldBaseY;
+  // Pinch (ctrlKey set by browser for trackpad pinch) → continuous, smooth factor.
+  // Cmd+scroll → discrete ±15% steps.
+  const factor = (e.ctrlKey && !e.metaKey)
+    ? Math.exp(-e.deltaY * 0.01)          // pinch: smooth & proportional
+    : (e.deltaY > 0 ? (1 / 1.15) : 1.15); // Cmd/Ctrl+scroll: discrete steps
 
-  const fracX = canvasX / oldDispW;
-  const fracY = canvasY / oldDispH;
-
-  const factor = e.deltaY > 0 ? (1 / 1.15) : 1.15;
   zoomLevel = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoomLevel * factor));
   renderCanvas();
 
@@ -1706,7 +1787,6 @@ canvasCont.addEventListener('wheel', e => {
   const newDispH = imgCanvas.offsetHeight;
   const newBaseX = Math.max(0, (contW - newDispW) / 2);
   const newBaseY = Math.max(0, (contH - newDispH) / 2);
-
   canvasCont.scrollLeft = newBaseX + fracX * newDispW - cursorX;
   canvasCont.scrollTop  = newBaseY + fracY * newDispH - cursorY;
 }, { passive: false });
